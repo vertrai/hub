@@ -13,6 +13,7 @@ const (
 const (
 	MiniProgramTaskSpawning         = "SPAWNING"
 	MiniProgramTaskWaitingForWeixin = "WAITING_FOR_WECHAT"
+	MiniProgramTaskRefreshingQR     = "REFRESHING_WECHAT_QR"
 	MiniProgramTaskStartingAgent    = "STARTING_AGENT"
 	MiniProgramTaskRunning          = "RUNNING"
 	MiniProgramTaskQRExpired        = "QR_EXPIRED"

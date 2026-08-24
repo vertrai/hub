@@ -2,15 +2,18 @@ package manager
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,25 +24,22 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-func (m *Manager) spawnMiniProgramAgent(c *gin.Context) {
+const miniProgramSessionLifetime = 30 * 24 * time.Hour
+
+func (m *Manager) loginMiniProgramUser(c *gin.Context) {
 	if m.wdb == nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "manager database is unavailable"})
 		return
 	}
-	if err := validateMiniProgramConfig(m.config.MiniProgram); err != nil {
+	if err := validateMiniProgramIdentityConfig(m.config.MiniProgram); err != nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": err.Error()})
 		return
 	}
 	var input struct {
-		Code     string `json:"code"`
-		Template string `json:"template"`
+		Code string `json:"code"`
 	}
 	if c.ShouldBindJSON(&input) != nil || strings.TrimSpace(input.Code) == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "WeChat login code is required"})
-		return
-	}
-	if input.Template != "" && input.Template != "hermes" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported agent template"})
 		return
 	}
 	openid, err := m.exchangeMiniProgramCode(c.Request.Context(), strings.TrimSpace(input.Code))
@@ -53,7 +53,36 @@ func (m *Manager) spawnMiniProgramAgent(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	token, tokenHash, err := newMiniProgramTaskToken()
+	expiresAt := time.Now().UTC().Add(miniProgramSessionLifetime)
+	c.Header("Cache-Control", "no-store")
+	c.JSON(http.StatusOK, gin.H{"sessionToken": m.signMiniProgramSession(userID, expiresAt), "expiresAt": expiresAt, "user": gin.H{"id": user.ID, "name": user.Name}})
+}
+
+func (m *Manager) spawnMiniProgramAgent(c *gin.Context) {
+	if m.wdb == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "manager database is unavailable"})
+		return
+	}
+	if err := validateMiniProgramConfig(m.config.MiniProgram); err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": err.Error()})
+		return
+	}
+	userID, ok := m.requireMiniProgramSession(c)
+	if !ok {
+		return
+	}
+	var input struct {
+		Template string `json:"template"`
+	}
+	if c.ShouldBindJSON(&input) != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+	if input.Template != "" && input.Template != "hermes" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported agent template"})
+		return
+	}
+	_, tokenHash, err := newMiniProgramTaskToken()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "create task token"})
 		return
@@ -65,8 +94,7 @@ func (m *Manager) spawnMiniProgramAgent(c *gin.Context) {
 			return err
 		}
 		var activeTasks int64
-		activeStatuses := []string{schema.MiniProgramTaskSpawning, schema.MiniProgramTaskWaitingForWeixin, schema.MiniProgramTaskStartingAgent, schema.MiniProgramTaskRunning}
-		if err := tx.Model(&schema.MiniProgramAgentTask{}).Where("user_id = ? AND status IN ?", userID, activeStatuses).Count(&activeTasks).Error; err != nil {
+		if err := tx.Model(&schema.MiniProgramAgentTask{}).Where("user_id = ? AND (pod_id <> '' OR status = ?)", userID, schema.MiniProgramTaskSpawning).Count(&activeTasks).Error; err != nil {
 			return err
 		}
 		if activeTasks > 0 {
@@ -95,7 +123,7 @@ func (m *Manager) spawnMiniProgramAgent(c *gin.Context) {
 	}
 	go m.provisionMiniProgramAgentTask(task.ID)
 	c.Header("Cache-Control", "no-store")
-	c.JSON(http.StatusAccepted, miniProgramTaskResponse(task, token))
+	c.JSON(http.StatusAccepted, miniProgramTaskResponse(task, ""))
 }
 
 var (
@@ -133,20 +161,117 @@ func (m *Manager) getMiniProgramAgent(c *gin.Context) {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "manager database is unavailable"})
 		return
 	}
+	userID, ok := m.requireMiniProgramSession(c)
+	if !ok {
+		return
+	}
 	var task schema.MiniProgramAgentTask
-	if err := m.wdb.Db.First(&task, "id = ?", c.Param("taskId")).Error; errors.Is(err, gorm.ErrRecordNotFound) {
+	if err := m.wdb.Db.First(&task, "id = ? AND user_id = ?", c.Param("taskId"), userID).Error; errors.Is(err, gorm.ErrRecordNotFound) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "agent task not found"})
 		return
 	} else if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	if !validMiniProgramTaskToken(task.TokenHash, bearerToken(c)) {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid agent task token"})
-		return
-	}
+	m.reconcileMiniProgramWeixinAttempt(&task)
 	c.Header("Cache-Control", "no-store")
 	c.JSON(http.StatusOK, miniProgramTaskResponse(task, ""))
+}
+
+func (m *Manager) getCurrentMiniProgramAgent(c *gin.Context) {
+	if m.wdb == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "manager database is unavailable"})
+		return
+	}
+	userID, ok := m.requireMiniProgramSession(c)
+	if !ok {
+		return
+	}
+	var task schema.MiniProgramAgentTask
+	err := m.wdb.Db.Where("user_id = ?", userID).Order("created_at desc").First(&task).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		c.Header("Cache-Control", "no-store")
+		c.JSON(http.StatusOK, gin.H{"task": nil})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	m.reconcileMiniProgramWeixinAttempt(&task)
+	c.Header("Cache-Control", "no-store")
+	c.JSON(http.StatusOK, gin.H{"task": miniProgramTaskResponse(task, "")})
+}
+
+func (m *Manager) refreshMiniProgramAgentQR(c *gin.Context) {
+	if m.wdb == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "manager database is unavailable"})
+		return
+	}
+	userID, ok := m.requireMiniProgramSession(c)
+	if !ok {
+		return
+	}
+	var task schema.MiniProgramAgentTask
+	if err := m.wdb.Db.First(&task, "id = ? AND user_id = ?", c.Param("taskId"), userID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "agent task not found"})
+		return
+	}
+	if task.Status != schema.MiniProgramTaskQRExpired || task.PodID == "" {
+		c.JSON(http.StatusConflict, gin.H{"error": "only an expired WeChat QR code can be refreshed"})
+		return
+	}
+	claim := m.wdb.Db.Model(&schema.MiniProgramAgentTask{}).Where("id = ? AND status = ?", task.ID, schema.MiniProgramTaskQRExpired).Update("status", schema.MiniProgramTaskRefreshingQR)
+	if claim.Error != nil || claim.RowsAffected != 1 {
+		c.JSON(http.StatusConflict, gin.H{"error": "QR code refresh is already in progress"})
+		return
+	}
+	onboarding, err := m.createWeixinOnboarding(c.Request.Context(), userID)
+	if err != nil {
+		m.wdb.Db.Model(&schema.MiniProgramAgentTask{}).Where("id = ? AND status = ?", task.ID, schema.MiniProgramTaskRefreshingQR).Update("status", schema.MiniProgramTaskQRExpired)
+		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		return
+	}
+	result := m.wdb.Db.Model(&schema.MiniProgramAgentTask{}).Where("id = ? AND status = ?", task.ID, schema.MiniProgramTaskRefreshingQR).Updates(map[string]any{
+		"status": schema.MiniProgramTaskWaitingForWeixin, "weixin_attempt_id": onboarding.AttemptID, "qr_code_data": onboarding.QRImage, "qr_expires_at": onboarding.ExpiresAt, "error": "",
+	})
+	if result.Error != nil || result.RowsAffected != 1 {
+		m.consumeWeixinAttempt(onboarding.AttemptID)
+		m.wdb.Db.Model(&schema.MiniProgramAgentTask{}).Where("id = ? AND status = ?", task.ID, schema.MiniProgramTaskRefreshingQR).Updates(map[string]any{"status": schema.MiniProgramTaskQRExpired, "error": "微信连接码刷新失败，请重试"})
+		c.JSON(http.StatusConflict, gin.H{"error": "QR code was refreshed concurrently"})
+		return
+	}
+	task.Status, task.WeixinAttemptID, task.QRCodeData, task.QRExpiresAt, task.Error = schema.MiniProgramTaskWaitingForWeixin, onboarding.AttemptID, onboarding.QRImage, onboarding.ExpiresAt, ""
+	go m.watchMiniProgramWeixin(task.ID)
+	c.Header("Cache-Control", "no-store")
+	c.JSON(http.StatusOK, miniProgramTaskResponse(task, ""))
+}
+
+func (m *Manager) reconcileMiniProgramWeixinAttempt(task *schema.MiniProgramAgentTask) {
+	if task.Status == schema.MiniProgramTaskRefreshingQR {
+		if time.Since(task.UpdatedAt) > time.Minute {
+			result := m.wdb.Db.Model(task).Where("id = ? AND status = ?", task.ID, schema.MiniProgramTaskRefreshingQR).Updates(map[string]any{"status": schema.MiniProgramTaskQRExpired, "error": "微信连接码刷新中断，请重试"})
+			if result.Error == nil && result.RowsAffected == 1 {
+				task.Status, task.Error = schema.MiniProgramTaskQRExpired, "微信连接码刷新中断，请重试"
+			}
+		}
+		return
+	}
+	if task.Status != schema.MiniProgramTaskWaitingForWeixin || task.WeixinAttemptID == "" {
+		return
+	}
+	m.weixinMu.Lock()
+	_, exists := m.weixinAttempts[task.WeixinAttemptID]
+	m.weixinMu.Unlock()
+	// Another Manager replica may own the in-memory attempt. Wait until the
+	// advertised QR lifetime has elapsed before offering a safe refresh.
+	if exists || time.Now().UTC().Before(task.QRExpiresAt) {
+		return
+	}
+	result := m.wdb.Db.Model(task).Where("id = ? AND status = ?", task.ID, schema.MiniProgramTaskWaitingForWeixin).Updates(map[string]any{"status": schema.MiniProgramTaskQRExpired, "error": "微信连接码需要刷新"})
+	if result.Error == nil && result.RowsAffected == 1 {
+		task.Status, task.Error = schema.MiniProgramTaskQRExpired, "微信连接码需要刷新"
+	}
 }
 
 func (m *Manager) watchMiniProgramWeixin(taskID string) {
@@ -314,6 +439,55 @@ func validateMiniProgramConfig(cfg MiniProgramConfig) error {
 		return fmt.Errorf("miniProgram.weixinAPIBase is not configured")
 	}
 	return nil
+}
+
+func validateMiniProgramIdentityConfig(cfg MiniProgramConfig) error {
+	if strings.TrimSpace(cfg.AppID) == "" || strings.TrimSpace(cfg.AppSecret) == "" || strings.TrimSpace(cfg.WeixinAPIBase) == "" {
+		return fmt.Errorf("miniProgram appId, appSecret and weixinAPIBase are required")
+	}
+	return nil
+}
+
+func (m *Manager) signMiniProgramSession(userID string, expiresAt time.Time) string {
+	payload := base64.RawURLEncoding.EncodeToString([]byte(userID + "|" + strconv.FormatInt(expiresAt.Unix(), 10)))
+	mac := hmac.New(sha256.New, []byte(m.config.MiniProgram.AppSecret))
+	_, _ = mac.Write([]byte(payload))
+	return payload + "." + hex.EncodeToString(mac.Sum(nil))
+}
+
+func (m *Manager) parseMiniProgramSession(token string) (string, bool) {
+	parts := strings.Split(token, ".")
+	if len(parts) != 2 {
+		return "", false
+	}
+	mac := hmac.New(sha256.New, []byte(m.config.MiniProgram.AppSecret))
+	_, _ = mac.Write([]byte(parts[0]))
+	expected := hex.EncodeToString(mac.Sum(nil))
+	if subtle.ConstantTimeCompare([]byte(expected), []byte(parts[1])) != 1 {
+		return "", false
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(parts[0])
+	if err != nil {
+		return "", false
+	}
+	claims := strings.Split(string(raw), "|")
+	if len(claims) != 2 || !strings.HasPrefix(claims[0], "wx_") {
+		return "", false
+	}
+	expiresUnix, err := strconv.ParseInt(claims[1], 10, 64)
+	if err != nil || time.Now().UTC().After(time.Unix(expiresUnix, 0)) {
+		return "", false
+	}
+	return claims[0], true
+}
+
+func (m *Manager) requireMiniProgramSession(c *gin.Context) (string, bool) {
+	userID, ok := m.parseMiniProgramSession(bearerToken(c))
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "微信登录已失效，请重新登录"})
+		return "", false
+	}
+	return userID, true
 }
 
 func miniProgramUserID(appID, openID string) string {

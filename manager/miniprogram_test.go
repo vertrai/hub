@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestMiniProgramTaskTokenIsOpaqueAndVerifiable(t *testing.T) {
@@ -18,6 +19,24 @@ func TestMiniProgramTaskTokenIsOpaqueAndVerifiable(t *testing.T) {
 	}
 	if validMiniProgramTaskToken(hash, token+"tampered") {
 		t.Fatal("tampered task token was accepted")
+	}
+}
+
+func TestMiniProgramSessionRoundTripAndExpiry(t *testing.T) {
+	service, err := New("test", Config{MiniProgram: MiniProgramConfig{AppSecret: "session-secret"}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	token := service.signMiniProgramSession("wx_user123", time.Now().Add(time.Hour))
+	if userID, ok := service.parseMiniProgramSession(token); !ok || userID != "wx_user123" {
+		t.Fatalf("session user=%q ok=%v", userID, ok)
+	}
+	if _, ok := service.parseMiniProgramSession(token + "tampered"); ok {
+		t.Fatal("tampered session accepted")
+	}
+	expired := service.signMiniProgramSession("wx_user123", time.Now().Add(-time.Second))
+	if _, ok := service.parseMiniProgramSession(expired); ok {
+		t.Fatal("expired session accepted")
 	}
 }
 
