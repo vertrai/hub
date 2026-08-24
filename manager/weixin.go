@@ -37,6 +37,18 @@ type weixinAttempt struct {
 	Polling                                         bool
 }
 
+type weixinOnboardingStart struct {
+	AttemptID       string
+	QRImage         string
+	ExpiresAt       time.Time
+	ExpireTime      int
+	IntervalSeconds int
+}
+
+type weixinOnboardingState struct {
+	State, BotID, AccountID, UserID string
+}
+
 func (m *Manager) startWeixinOnboarding(c *gin.Context) {
 	var input struct {
 		UserID string `json:"userId"`
@@ -56,18 +68,25 @@ func (m *Manager) startWeixinOnboarding(c *gin.Context) {
 			return
 		}
 	}
+	result, err := m.createWeixinOnboarding(c.Request.Context(), input.UserID)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"attemptId": result.AttemptID, "qrImage": result.QRImage, "expiresAt": result.ExpiresAt, "expireTime": result.ExpireTime, "intervalSeconds": result.IntervalSeconds})
+}
+
+func (m *Manager) createWeixinOnboarding(ctx context.Context, userID string) (weixinOnboardingStart, error) {
 	var payload struct {
 		QRCode     string `json:"qrcode"`
 		Image      string `json:"qrcode_img_content"`
 		ExpireTime int    `json:"expire_time"`
 	}
-	if err := m.weixinGET(c.Request.Context(), m.weixinBaseURL+"/ilink/bot/get_bot_qrcode?bot_type=3", &payload); err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
-		return
+	if err := m.weixinGET(ctx, m.weixinBaseURL+"/ilink/bot/get_bot_qrcode?bot_type=3", &payload); err != nil {
+		return weixinOnboardingStart{}, err
 	}
 	if payload.QRCode == "" {
-		c.JSON(http.StatusBadGateway, gin.H{"error": "iLink QR response is incomplete"})
-		return
+		return weixinOnboardingStart{}, fmt.Errorf("iLink QR response is incomplete")
 	}
 	content := payload.Image
 	if content == "" {
@@ -75,11 +94,10 @@ func (m *Manager) startWeixinOnboarding(c *gin.Context) {
 	}
 	code, err := qr.Encode(content, qr.M)
 	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": "encode iLink QR code: " + err.Error()})
-		return
+		return weixinOnboardingStart{}, fmt.Errorf("encode iLink QR code: %w", err)
 	}
 	qrDataURL := "data:image/png;base64," + base64.StdEncoding.EncodeToString(code.PNG())
-	attempt := weixinAttempt{ID: uuid.NewString(), UserID: input.UserID, PollSecret: payload.QRCode, QRContent: content, ProviderBase: m.weixinBaseURL, ExpiresAt: time.Now().UTC().Add(weixinAttemptLifetime)}
+	attempt := weixinAttempt{ID: uuid.NewString(), UserID: userID, PollSecret: payload.QRCode, QRContent: content, ProviderBase: m.weixinBaseURL, ExpiresAt: time.Now().UTC().Add(weixinAttemptLifetime)}
 	m.weixinMu.Lock()
 	for id, old := range m.weixinAttempts {
 		deadline := old.ExpiresAt
@@ -96,16 +114,25 @@ func (m *Manager) startWeixinOnboarding(c *gin.Context) {
 	if payload.ExpireTime > 0 && time.Duration(payload.ExpireTime)*time.Second <= weixinAttemptLifetime {
 		qrLifetime = time.Duration(payload.ExpireTime) * time.Second
 	}
-	c.JSON(http.StatusCreated, gin.H{"attemptId": attempt.ID, "qrImage": qrDataURL, "expiresAt": time.Now().UTC().Add(qrLifetime), "expireTime": int(qrLifetime.Seconds()), "intervalSeconds": 2})
+	expiresAt := time.Now().UTC().Add(qrLifetime)
+	return weixinOnboardingStart{AttemptID: attempt.ID, QRImage: qrDataURL, ExpiresAt: expiresAt, ExpireTime: int(qrLifetime.Seconds()), IntervalSeconds: 2}, nil
 }
 
 func (m *Manager) pollWeixinOnboarding(c *gin.Context) {
+	state, status, err := m.pollWeixinOnboardingAttempt(c.Request.Context(), c.Param("attempt"))
+	if err != nil {
+		c.JSON(status, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(status, gin.H{"state": state.State, "botId": state.BotID, "accountId": state.AccountID, "userId": state.UserID})
+}
+
+func (m *Manager) pollWeixinOnboardingAttempt(ctx context.Context, attemptID string) (weixinOnboardingState, int, error) {
 	m.weixinMu.Lock()
-	attempt, ok := m.weixinAttempts[c.Param("attempt")]
+	attempt, ok := m.weixinAttempts[attemptID]
 	if ok && attempt.Polling {
 		m.weixinMu.Unlock()
-		c.JSON(http.StatusConflict, gin.H{"error": "Weixin onboarding poll is already in progress"})
-		return
+		return weixinOnboardingState{}, http.StatusConflict, fmt.Errorf("Weixin onboarding poll is already in progress")
 	}
 	if ok {
 		attempt.Polling = true
@@ -113,8 +140,7 @@ func (m *Manager) pollWeixinOnboarding(c *gin.Context) {
 	}
 	m.weixinMu.Unlock()
 	if !ok {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Weixin onboarding attempt not found"})
-		return
+		return weixinOnboardingState{}, http.StatusNotFound, fmt.Errorf("Weixin onboarding attempt not found")
 	}
 	defer func() {
 		m.weixinMu.Lock()
@@ -127,38 +153,32 @@ func (m *Manager) pollWeixinOnboarding(c *gin.Context) {
 	if attempt.Credentials != nil {
 		if time.Now().UTC().After(attempt.CredentialExpiresAt) {
 			m.consumeWeixinAttempt(attempt.ID)
-			c.JSON(http.StatusGone, gin.H{"state": "expired"})
-			return
+			return weixinOnboardingState{State: "expired"}, http.StatusGone, nil
 		}
-		c.JSON(http.StatusOK, gin.H{"state": "connected", "botId": attempt.Credentials.BotID, "accountId": attempt.Credentials.AccountID, "userId": attempt.Credentials.UserID})
-		return
+		return weixinOnboardingState{State: "connected", BotID: attempt.Credentials.BotID, AccountID: attempt.Credentials.AccountID, UserID: attempt.Credentials.UserID}, http.StatusOK, nil
 	}
 	if time.Now().UTC().After(attempt.ExpiresAt) {
 		m.consumeWeixinAttempt(attempt.ID)
-		c.JSON(http.StatusGone, gin.H{"state": "expired"})
-		return
+		return weixinOnboardingState{State: "expired"}, http.StatusGone, nil
 	}
 	var payload map[string]any
 	endpoint := strings.TrimRight(attempt.ProviderBase, "/") + "/ilink/bot/get_qrcode_status?qrcode=" + url.QueryEscape(attempt.PollSecret)
-	if err := m.weixinGET(c.Request.Context(), endpoint, &payload); err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
-		return
+	if err := m.weixinGET(ctx, endpoint, &payload); err != nil {
+		return weixinOnboardingState{}, http.StatusBadGateway, err
 	}
 	status, _ := payload["status"].(string)
 	if status == "scaned_but_redirect" {
 		if host, _ := payload["redirect_host"].(string); host != "" {
 			base, err := allowedWeixinURL("https://" + host)
 			if err != nil {
-				c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
-				return
+				return weixinOnboardingState{}, http.StatusBadGateway, err
 			}
 			attempt.ProviderBase = base
 		}
 	}
 	if status == "expired" {
 		m.consumeWeixinAttempt(attempt.ID)
-		c.JSON(http.StatusOK, gin.H{"state": "expired"})
-		return
+		return weixinOnboardingState{State: "expired"}, http.StatusOK, nil
 	}
 	if status != "confirmed" {
 		state := "waiting"
@@ -166,8 +186,7 @@ func (m *Manager) pollWeixinOnboarding(c *gin.Context) {
 			state = "scanned"
 		}
 		m.updateWeixinAttempt(attempt)
-		c.JSON(http.StatusOK, gin.H{"state": state})
-		return
+		return weixinOnboardingState{State: state}, http.StatusOK, nil
 	}
 	credential := &WeixinCredentials{AccountID: stringField(payload, "ilink_bot_id"), Token: stringField(payload, "bot_token"), BaseURL: stringField(payload, "baseurl"), UserID: stringField(payload, "ilink_user_id")}
 	if credential.BaseURL == "" {
@@ -175,20 +194,17 @@ func (m *Manager) pollWeixinOnboarding(c *gin.Context) {
 	}
 	base, err := allowedWeixinURL(credential.BaseURL)
 	if err != nil || credential.AccountID == "" || credential.Token == "" || credential.UserID == "" {
-		c.JSON(http.StatusBadGateway, gin.H{"error": "iLink credential response is incomplete or untrusted"})
-		return
+		return weixinOnboardingState{}, http.StatusBadGateway, fmt.Errorf("iLink credential response is incomplete or untrusted")
 	}
 	credential.BaseURL = base
 	active, storeStatus, storeErr := m.storeConfirmedWeixinAttempt(&attempt, credential)
 	if storeErr != nil {
-		c.JSON(storeStatus, gin.H{"error": storeErr.Error()})
-		return
+		return weixinOnboardingState{}, storeStatus, storeErr
 	}
 	if !active {
-		c.JSON(http.StatusGone, gin.H{"state": "expired"})
-		return
+		return weixinOnboardingState{State: "expired"}, http.StatusGone, nil
 	}
-	c.JSON(http.StatusOK, gin.H{"state": "connected", "botId": credential.BotID, "accountId": credential.AccountID, "userId": credential.UserID})
+	return weixinOnboardingState{State: "connected", BotID: credential.BotID, AccountID: credential.AccountID, UserID: credential.UserID}, http.StatusOK, nil
 }
 
 // storeConfirmedWeixinAttempt linearizes cancellation and credential storage:

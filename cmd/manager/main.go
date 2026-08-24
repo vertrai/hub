@@ -71,6 +71,12 @@ func run(_ *cli.Context) error {
 			AdminAPIKey: viper.GetString("resources.adminAPIKey"),
 			Timeout:     viper.GetDuration("resources.timeout"),
 		},
+		MiniProgram: manager.MiniProgramConfig{
+			AppID: viper.GetString("miniProgram.appId"), AppSecret: viper.GetString("miniProgram.appSecret"), WeixinAPIBase: viper.GetString("miniProgram.weixinAPIBase"),
+			NodeURL: viper.GetString("miniProgram.pod.nodeURL"), PrivateKey: viper.GetString("miniProgram.pod.privateKey"), Module: viper.GetString("miniProgram.pod.module"), RuntimeType: viper.GetString("miniProgram.pod.runtimeType"),
+			GatewayURL: viper.GetString("miniProgram.agent.gatewayURL"), HermesGatewayToken: viper.GetString("miniProgram.agent.hermesGatewayToken"),
+			LLMAPIKey: viper.GetString("miniProgram.agent.llm.apiKey"), LLMBaseURL: viper.GetString("miniProgram.agent.llm.baseURL"), LLMModel: viper.GetString("miniProgram.agent.llm.model"), LLMProvider: viper.GetString("miniProgram.agent.llm.provider"),
+		},
 	}, wdb)
 	if err != nil {
 		_ = wdb.Close()

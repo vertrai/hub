@@ -20,6 +20,8 @@ func (m *Manager) router() *gin.Engine {
 	r := gin.New()
 	r.Use(common.RequestLogger(log), gin.Recovery(), common.CORSMiddleware())
 	r.GET("/info", m.info)
+	r.POST("/v1/wechat/agents/spawn", m.spawnMiniProgramAgent)
+	r.GET("/v1/wechat/agents/:taskId", m.getMiniProgramAgent)
 	gatewayweb.RegisterRoutes(r, m.requireAdminPage)
 	r.GET("/v1/admin/auth/info", m.adminAuthInfo)
 	r.POST("/v1/admin/auth/google", m.adminGoogleLogin)

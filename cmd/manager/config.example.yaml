@@ -21,3 +21,22 @@ resources:
   baseURL: http://127.0.0.1:8085
   adminAPIKey: must-match-resouces-admin-api-key
   timeout: 30s
+
+# 小程序一键创建 Hermes Agent。所有敏感配置只保存在 manager 服务端。
+miniProgram:
+  appId: ""
+  appSecret: ""
+  weixinAPIBase: https://api.weixin.qq.com
+  pod:
+    nodeURL: https://your-hymatrix-node.example
+    privateKey: ""
+    module: ""
+    runtimeType: hermes
+  agent:
+    gatewayURL: https://your-manager.example
+    hermesGatewayToken: ""
+    llm:
+      provider: custom
+      baseURL: https://api.deepseek.com
+      model: deepseek-chat
+      apiKey: ""

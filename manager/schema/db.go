@@ -10,6 +10,15 @@ const (
 	PodStatusFailed   = "failed"
 )
 
+const (
+	MiniProgramTaskSpawning         = "SPAWNING"
+	MiniProgramTaskWaitingForWeixin = "WAITING_FOR_WECHAT"
+	MiniProgramTaskStartingAgent    = "STARTING_AGENT"
+	MiniProgramTaskRunning          = "RUNNING"
+	MiniProgramTaskQRExpired        = "QR_EXPIRED"
+	MiniProgramTaskFailed           = "FAILED"
+)
+
 type User struct {
 	ID        string    `gorm:"primaryKey;size:80" json:"id"`
 	Name      string    `gorm:"size:200;not null" json:"name"`
@@ -82,3 +91,21 @@ type WeixinBot struct {
 }
 
 func (WeixinBot) TableName() string { return "manager_weixin_bots" }
+
+// MiniProgramAgentTask is the public, token-protected view of Pod provisioning.
+// Sensitive Pod, wallet and iLink credentials remain in their owning tables.
+type MiniProgramAgentTask struct {
+	ID              string    `gorm:"primaryKey;size:80" json:"taskId"`
+	UserID          string    `gorm:"size:80;not null;index" json:"-"`
+	PodID           string    `gorm:"size:80;index" json:"podId,omitempty"`
+	WeixinAttemptID string    `gorm:"size:80" json:"-"`
+	TokenHash       string    `gorm:"size:64;not null" json:"-"`
+	Status          string    `gorm:"size:32;not null;index" json:"status"`
+	QRCodeData      string    `gorm:"type:text" json:"qrCodeUrl,omitempty"`
+	QRExpiresAt     time.Time `json:"qrExpiresAt,omitempty"`
+	Error           string    `gorm:"type:text" json:"error,omitempty"`
+	CreatedAt       time.Time `json:"createdAt"`
+	UpdatedAt       time.Time `json:"updatedAt"`
+}
+
+func (MiniProgramAgentTask) TableName() string { return "manager_mini_program_agent_tasks" }

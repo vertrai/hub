@@ -17,6 +17,16 @@ var log = common.NewLog("manager")
 type Config struct {
 	AdminGoogle AdminGoogleConfig
 	Resources   ResourcesConfig
+	MiniProgram MiniProgramConfig
+}
+
+type MiniProgramConfig struct {
+	AppID, AppSecret, WeixinAPIBase string
+	NodeURL, PrivateKey, Module     string
+	RuntimeType, GatewayURL         string
+	HermesGatewayToken              string
+	LLMAPIKey, LLMBaseURL           string
+	LLMModel, LLMProvider           string
 }
 
 type AdminGoogleConfig struct {
@@ -34,16 +44,17 @@ type ResourcesConfig struct {
 }
 
 type Manager struct {
-	env            string
-	config         Config
-	wdb            *Wdb
-	resources      *ResourcesClient
-	apiServer      *http.Server
-	weixinMu       sync.Mutex
-	weixinAttempts map[string]weixinAttempt
-	weixinBaseURL  string
-	weixinClient   *http.Client
-	adminAuth      *adminAuthenticator
+	env                   string
+	config                Config
+	wdb                   *Wdb
+	resources             *ResourcesClient
+	apiServer             *http.Server
+	weixinMu              sync.Mutex
+	weixinAttempts        map[string]weixinAttempt
+	weixinBaseURL         string
+	weixinClient          *http.Client
+	adminAuth             *adminAuthenticator
+	miniProgramHTTPClient *http.Client
 }
 
 func New(env string, config Config, wdb *Wdb) (*Manager, error) {
@@ -66,10 +77,11 @@ func New(env string, config Config, wdb *Wdb) (*Manager, error) {
 	}
 	return &Manager{
 		env: env, config: config, wdb: wdb, resources: NewResourcesClient(config.Resources),
-		weixinAttempts: make(map[string]weixinAttempt),
-		weixinBaseURL:  "https://ilinkai.weixin.qq.com",
-		weixinClient:   &http.Client{Timeout: 15 * time.Second},
-		adminAuth:      auth,
+		weixinAttempts:        make(map[string]weixinAttempt),
+		weixinBaseURL:         "https://ilinkai.weixin.qq.com",
+		weixinClient:          &http.Client{Timeout: 15 * time.Second},
+		adminAuth:             auth,
+		miniProgramHTTPClient: &http.Client{Timeout: 10 * time.Second},
 	}, nil
 }
 
