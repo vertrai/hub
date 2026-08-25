@@ -217,18 +217,20 @@ func (m *Manager) refreshMiniProgramAgentQR(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "agent task not found"})
 		return
 	}
-	if task.Status != schema.MiniProgramTaskQRExpired || task.PodID == "" {
-		c.JSON(http.StatusConflict, gin.H{"error": "only an expired WeChat QR code can be refreshed"})
+	if !canRenewMiniProgramQR(task.Status) || task.PodID == "" {
+		c.JSON(http.StatusConflict, gin.H{"error": "WeChat QR code cannot be renewed in the current state"})
 		return
 	}
-	claim := m.wdb.Db.Model(&schema.MiniProgramAgentTask{}).Where("id = ? AND status = ?", task.ID, schema.MiniProgramTaskQRExpired).Update("status", schema.MiniProgramTaskRefreshingQR)
+	previousStatus := task.Status
+	claim := m.wdb.Db.Model(&schema.MiniProgramAgentTask{}).Where("id = ? AND status = ?", task.ID, previousStatus).Update("status", schema.MiniProgramTaskRefreshingQR)
 	if claim.Error != nil || claim.RowsAffected != 1 {
 		c.JSON(http.StatusConflict, gin.H{"error": "QR code refresh is already in progress"})
 		return
 	}
 	onboarding, err := m.createWeixinOnboarding(c.Request.Context(), userID)
 	if err != nil {
-		m.wdb.Db.Model(&schema.MiniProgramAgentTask{}).Where("id = ? AND status = ?", task.ID, schema.MiniProgramTaskRefreshingQR).Update("status", schema.MiniProgramTaskQRExpired)
+		m.consumeWeixinAttempt(task.WeixinAttemptID)
+		m.wdb.Db.Model(&schema.MiniProgramAgentTask{}).Where("id = ? AND status = ?", task.ID, schema.MiniProgramTaskRefreshingQR).Updates(map[string]any{"status": schema.MiniProgramTaskQRExpired, "error": "微信连接码更新失败，请重试"})
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return
 	}
@@ -245,6 +247,10 @@ func (m *Manager) refreshMiniProgramAgentQR(c *gin.Context) {
 	go m.watchMiniProgramWeixin(task.ID)
 	c.Header("Cache-Control", "no-store")
 	c.JSON(http.StatusOK, m.miniProgramTaskResponse(task, ""))
+}
+
+func canRenewMiniProgramQR(status string) bool {
+	return status == schema.MiniProgramTaskWaitingForWeixin || status == schema.MiniProgramTaskQRExpired
 }
 
 func (m *Manager) reconcileMiniProgramWeixinAttempt(task *schema.MiniProgramAgentTask) {
@@ -281,9 +287,10 @@ func (m *Manager) watchMiniProgramWeixin(taskID string) {
 			return
 		}
 		if !task.QRExpiresAt.IsZero() && time.Now().UTC().After(task.QRExpiresAt) {
-			task.Status, task.Error = schema.MiniProgramTaskQRExpired, "微信二维码已过期"
-			_ = m.wdb.Db.Save(&task).Error
-			m.consumeWeixinAttempt(task.WeixinAttemptID)
+			result := m.wdb.Db.Model(&schema.MiniProgramAgentTask{}).Where("id = ? AND status = ? AND weixin_attempt_id = ?", task.ID, schema.MiniProgramTaskWaitingForWeixin, task.WeixinAttemptID).Updates(map[string]any{"status": schema.MiniProgramTaskQRExpired, "error": "微信二维码已过期"})
+			if result.Error == nil && result.RowsAffected == 1 {
+				m.consumeWeixinAttempt(task.WeixinAttemptID)
+			}
 			return
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
@@ -297,15 +304,14 @@ func (m *Manager) watchMiniProgramWeixin(taskID string) {
 			continue
 		}
 		if state.State == "expired" {
-			task.Status, task.Error = schema.MiniProgramTaskQRExpired, "微信二维码已过期"
-			_ = m.wdb.Db.Save(&task).Error
+			m.wdb.Db.Model(&schema.MiniProgramAgentTask{}).Where("id = ? AND status = ? AND weixin_attempt_id = ?", task.ID, schema.MiniProgramTaskWaitingForWeixin, task.WeixinAttemptID).Updates(map[string]any{"status": schema.MiniProgramTaskQRExpired, "error": "微信二维码已过期"})
 			return
 		}
 		if state.State != "connected" {
 			time.Sleep(2 * time.Second)
 			continue
 		}
-		result := m.wdb.Db.Model(&schema.MiniProgramAgentTask{}).Where("id = ? AND status = ?", task.ID, schema.MiniProgramTaskWaitingForWeixin).Updates(map[string]any{"status": schema.MiniProgramTaskStartingAgent, "qr_code_data": ""})
+		result := m.wdb.Db.Model(&schema.MiniProgramAgentTask{}).Where("id = ? AND status = ? AND weixin_attempt_id = ?", task.ID, schema.MiniProgramTaskWaitingForWeixin, task.WeixinAttemptID).Updates(map[string]any{"status": schema.MiniProgramTaskStartingAgent, "qr_code_data": ""})
 		if result.Error != nil || result.RowsAffected != 1 {
 			return
 		}

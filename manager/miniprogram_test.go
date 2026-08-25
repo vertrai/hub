@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/vertrai/hub/manager/schema"
 )
 
 func TestMiniProgramTaskTokenIsOpaqueAndVerifiable(t *testing.T) {
@@ -72,5 +74,18 @@ func TestExchangeMiniProgramCodeUsesCode2Session(t *testing.T) {
 func TestMiniProgramConfigRejectsMissingServerSecrets(t *testing.T) {
 	if err := validateMiniProgramConfig(MiniProgramConfig{}); err == nil || !strings.Contains(err.Error(), "miniProgram.") {
 		t.Fatalf("expected actionable config error, got %v", err)
+	}
+}
+
+func TestMiniProgramQRCanBeRenewedBeforeSharingOrAfterExpiry(t *testing.T) {
+	for _, status := range []string{schema.MiniProgramTaskWaitingForWeixin, schema.MiniProgramTaskQRExpired} {
+		if !canRenewMiniProgramQR(status) {
+			t.Fatalf("status %q should allow QR renewal", status)
+		}
+	}
+	for _, status := range []string{schema.MiniProgramTaskSpawning, schema.MiniProgramTaskRefreshingQR, schema.MiniProgramTaskStartingAgent, schema.MiniProgramTaskRunning, schema.MiniProgramTaskFailed} {
+		if canRenewMiniProgramQR(status) {
+			t.Fatalf("status %q should not allow QR renewal", status)
+		}
 	}
 }

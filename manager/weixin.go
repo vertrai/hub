@@ -19,7 +19,7 @@ import (
 
 const (
 	weixinAttemptLifetime         = 10 * time.Minute
-	weixinQRCodeEstimatedLifetime = 90 * time.Second
+	weixinQRCodeEstimatedLifetime = 2 * time.Minute
 )
 
 type WeixinCredentials struct {
