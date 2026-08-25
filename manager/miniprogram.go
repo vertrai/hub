@@ -123,7 +123,7 @@ func (m *Manager) spawnMiniProgramAgent(c *gin.Context) {
 	}
 	go m.provisionMiniProgramAgentTask(task.ID)
 	c.Header("Cache-Control", "no-store")
-	c.JSON(http.StatusAccepted, miniProgramTaskResponse(task, ""))
+	c.JSON(http.StatusAccepted, m.miniProgramTaskResponse(task, ""))
 }
 
 var (
@@ -175,7 +175,7 @@ func (m *Manager) getMiniProgramAgent(c *gin.Context) {
 	}
 	m.reconcileMiniProgramWeixinAttempt(&task)
 	c.Header("Cache-Control", "no-store")
-	c.JSON(http.StatusOK, miniProgramTaskResponse(task, ""))
+	c.JSON(http.StatusOK, m.miniProgramTaskResponse(task, ""))
 }
 
 func (m *Manager) getCurrentMiniProgramAgent(c *gin.Context) {
@@ -200,7 +200,7 @@ func (m *Manager) getCurrentMiniProgramAgent(c *gin.Context) {
 	}
 	m.reconcileMiniProgramWeixinAttempt(&task)
 	c.Header("Cache-Control", "no-store")
-	c.JSON(http.StatusOK, gin.H{"task": miniProgramTaskResponse(task, "")})
+	c.JSON(http.StatusOK, gin.H{"task": m.miniProgramTaskResponse(task, "")})
 }
 
 func (m *Manager) refreshMiniProgramAgentQR(c *gin.Context) {
@@ -244,7 +244,7 @@ func (m *Manager) refreshMiniProgramAgentQR(c *gin.Context) {
 	task.Status, task.WeixinAttemptID, task.QRCodeData, task.QRExpiresAt, task.Error = schema.MiniProgramTaskWaitingForWeixin, onboarding.AttemptID, onboarding.QRImage, onboarding.ExpiresAt, ""
 	go m.watchMiniProgramWeixin(task.ID)
 	c.Header("Cache-Control", "no-store")
-	c.JSON(http.StatusOK, miniProgramTaskResponse(task, ""))
+	c.JSON(http.StatusOK, m.miniProgramTaskResponse(task, ""))
 }
 
 func (m *Manager) reconcileMiniProgramWeixinAttempt(task *schema.MiniProgramAgentTask) {
@@ -523,8 +523,15 @@ func (m *Manager) failMiniProgramTask(task *schema.MiniProgramAgentTask, err err
 	_ = m.wdb.Db.Save(task).Error
 }
 
-func miniProgramTaskResponse(task schema.MiniProgramAgentTask, token string) gin.H {
-	result := gin.H{"taskId": task.ID, "status": task.Status, "podId": task.PodID, "qrCodeUrl": task.QRCodeData, "qrExpiresAt": task.QRExpiresAt, "error": task.Error}
+func (m *Manager) miniProgramTaskResponse(task schema.MiniProgramAgentTask, token string) gin.H {
+	runtimeType := ""
+	if m.wdb != nil && task.PodID != "" {
+		var pod schema.HymatrixPod
+		if err := m.wdb.Db.Select("runtime_type").First(&pod, "id = ?", task.PodID).Error; err == nil {
+			runtimeType = pod.RuntimeType
+		}
+	}
+	result := gin.H{"taskId": task.ID, "status": task.Status, "podId": task.PodID, "runtimeType": runtimeType, "createdAt": task.CreatedAt, "qrCodeUrl": task.QRCodeData, "qrExpiresAt": task.QRExpiresAt, "error": task.Error}
 	if token != "" {
 		result["taskToken"] = token
 	}
