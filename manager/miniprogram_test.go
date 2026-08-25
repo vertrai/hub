@@ -89,3 +89,22 @@ func TestMiniProgramQRCanBeRenewedBeforeSharingOrAfterExpiry(t *testing.T) {
 		}
 	}
 }
+
+func TestMiniProgramPodWaitsForUserBeforeCreatingWeixinQR(t *testing.T) {
+	task := schema.MiniProgramAgentTask{
+		Status:          schema.MiniProgramTaskSpawning,
+		WeixinAttemptID: "old-attempt",
+		QRCodeData:      "old-qr",
+		QRExpiresAt:     time.Now().UTC().Add(time.Minute),
+		Error:           "old error",
+	}
+
+	prepareMiniProgramTaskForWeixin(&task)
+
+	if task.Status != schema.MiniProgramTaskWaitingForWeixin {
+		t.Fatalf("expected task to wait for user, got %q", task.Status)
+	}
+	if task.WeixinAttemptID != "" || task.QRCodeData != "" || !task.QRExpiresAt.IsZero() || task.Error != "" {
+		t.Fatalf("task generated or retained WeChat QR data before user action: %+v", task)
+	}
+}

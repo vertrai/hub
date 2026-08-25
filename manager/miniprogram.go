@@ -140,20 +140,18 @@ func (m *Manager) provisionMiniProgramAgentTask(taskID string) {
 		m.failMiniProgramTask(&task, err)
 		return
 	}
-	onboarding, err := m.createWeixinOnboarding(context.Background(), task.UserID)
-	if err != nil {
-		m.failMiniProgramTask(&task, err)
-		return
-	}
-	task.WeixinAttemptID = onboarding.AttemptID
-	task.QRCodeData = onboarding.QRImage
-	task.QRExpiresAt = onboarding.ExpiresAt
-	task.Status = schema.MiniProgramTaskWaitingForWeixin
+	prepareMiniProgramTaskForWeixin(&task)
 	if err := m.wdb.Db.Save(&task).Error; err != nil {
 		m.failMiniProgramTask(&task, err)
-		return
 	}
-	m.watchMiniProgramWeixin(task.ID)
+}
+
+func prepareMiniProgramTaskForWeixin(task *schema.MiniProgramAgentTask) {
+	task.Status = schema.MiniProgramTaskWaitingForWeixin
+	task.WeixinAttemptID = ""
+	task.QRCodeData = ""
+	task.QRExpiresAt = time.Time{}
+	task.Error = ""
 }
 
 func (m *Manager) getMiniProgramAgent(c *gin.Context) {
