@@ -169,9 +169,9 @@ func (m *Manager) pollWeixinOnboardingAttempt(ctx context.Context, attemptID str
 	status, _ := payload["status"].(string)
 	if status == "scaned_but_redirect" {
 		if host, _ := payload["redirect_host"].(string); host != "" {
-			base, err := allowedWeixinURL("https://" + host)
+			base, err := allowedWeixinRedirectURL(host)
 			if err != nil {
-				return weixinOnboardingState{}, http.StatusBadGateway, err
+				return weixinOnboardingState{}, http.StatusBadGateway, fmt.Errorf("invalid iLink redirect host %q: %w", host, err)
 			}
 			attempt.ProviderBase = base
 		}
@@ -356,9 +356,26 @@ func allowedWeixinURL(raw string) (string, error) {
 		return "", fmt.Errorf("invalid iLink base URL")
 	}
 	host := strings.ToLower(parsed.Hostname())
-	if host != "weixin.qq.com" && !strings.HasSuffix(host, ".weixin.qq.com") {
+	if !trustedWeixinHost(host) {
 		return "", fmt.Errorf("untrusted iLink host")
 	}
 	parsed.Path = strings.TrimRight(parsed.Path, "/")
 	return parsed.String(), nil
+}
+
+func trustedWeixinHost(host string) bool {
+	for _, root := range []string{"weixin.qq.com", "wechat.com"} {
+		if host == root || strings.HasSuffix(host, "."+root) {
+			return true
+		}
+	}
+	return false
+}
+
+func allowedWeixinRedirectURL(raw string) (string, error) {
+	candidate := strings.TrimSpace(raw)
+	if !strings.Contains(candidate, "://") {
+		candidate = "https://" + candidate
+	}
+	return allowedWeixinURL(candidate)
 }

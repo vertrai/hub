@@ -535,7 +535,13 @@ func (m *Manager) miniProgramTaskResponse(task schema.MiniProgramAgentTask, toke
 			runtimeType = pod.RuntimeType
 		}
 	}
-	result := gin.H{"taskId": task.ID, "status": task.Status, "podId": task.PodID, "runtimeType": runtimeType, "createdAt": task.CreatedAt, "qrCodeUrl": task.QRCodeData, "qrExpiresAt": task.QRExpiresAt, "error": task.Error}
+	result := gin.H{"taskId": task.ID, "status": task.Status, "podId": task.PodID, "runtimeType": runtimeType, "createdAt": task.CreatedAt, "error": task.Error}
+	if task.QRCodeData != "" {
+		result["qrCodeUrl"] = task.QRCodeData
+		if !task.QRExpiresAt.IsZero() {
+			result["qrExpiresAt"] = task.QRExpiresAt
+		}
+	}
 	if token != "" {
 		result["taskToken"] = token
 	}

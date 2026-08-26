@@ -54,6 +54,24 @@ func TestAllowedWeixinURLRejectsUntrustedHost(t *testing.T) {
 	}
 }
 
+func TestAllowedWeixinRedirectURLAcceptsHostAndHTTPSURL(t *testing.T) {
+	for _, input := range []string{"ilinkai.weixin.qq.com", "https://ilinkai.weixin.qq.com", "ilinkai.wechat.com", "https://ilinkai.wechat.com"} {
+		got, err := allowedWeixinRedirectURL(input)
+		want := input
+		if !strings.HasPrefix(want, "https://") {
+			want = "https://" + want
+		}
+		if err != nil || got != want {
+			t.Fatalf("input=%q got=%q err=%v", input, got, err)
+		}
+	}
+	for _, input := range []string{"http://ilinkai.weixin.qq.com", "https://attacker.example", "https://evilwechat.com", "https://wechat.com.attacker.example"} {
+		if _, err := allowedWeixinRedirectURL(input); err == nil {
+			t.Fatalf("expected redirect %q to be rejected", input)
+		}
+	}
+}
+
 func TestConfirmedWeixinCredentialsReturnHermesEnvironment(t *testing.T) {
 	m, err := New("test", Config{}, nil)
 	if err != nil {
