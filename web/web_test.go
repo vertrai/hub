@@ -319,6 +319,9 @@ func TestHymatrixPodHistorySupportsFilteringAndDetails(t *testing.T) {
 		"function openPodDetail(id)",
 		"失败原因",
 		"data-pod-detail",
+		"data-pod-stop",
+		"function stopPod(id, button)",
+		"Node Admin URL",
 	} {
 		if !strings.Contains(body, expected) {
 			t.Errorf("Hymatrix Pod history is missing %q", expected)

@@ -229,6 +229,36 @@ func TestFetchHymatrixNodeInfoRejectsPrivateAddress(t *testing.T) {
 	}
 }
 
+func TestStopHymatrixVMCallsAdminEndpoint(t *testing.T) {
+	previous := hymatrixAdminHTTPClient
+	t.Cleanup(func() { hymatrixAdminHTTPClient = previous })
+	hymatrixAdminHTTPClient = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if req.Method != http.MethodPost || req.URL.String() != "https://node.example/control/admin/vms/stop" {
+			t.Fatalf("request = %s %s", req.Method, req.URL.String())
+		}
+		body, _ := io.ReadAll(req.Body)
+		if string(body) != `{"pid":"pid-test"}` {
+			t.Fatalf("body = %s", body)
+		}
+		return &http.Response{StatusCode: http.StatusOK, Status: "200 OK", Body: io.NopCloser(strings.NewReader(`{"id":"pid-test","message":"stopped"}`)), Header: make(http.Header)}, nil
+	})}
+	if err := stopHymatrixVM(t.Context(), "https://node.example/control/", "pid-test"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestStopHymatrixVMReturnsNodeError(t *testing.T) {
+	previous := hymatrixAdminHTTPClient
+	t.Cleanup(func() { hymatrixAdminHTTPClient = previous })
+	hymatrixAdminHTTPClient = &http.Client{Transport: roundTripFunc(func(_ *http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusBadRequest, Status: "400 Bad Request", Body: io.NopCloser(strings.NewReader(`{"error":"err_process_stopped"}`)), Header: make(http.Header)}, nil
+	})}
+	err := stopHymatrixVM(t.Context(), "https://node.example", "pid-test")
+	if err == nil || !strings.Contains(err.Error(), "err_process_stopped") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
 func TestBuildStartAgentTagSetsIncludesCompleteEnvironment(t *testing.T) {
 	config := HymatrixConfig{
 		LLMProvider: "custom",

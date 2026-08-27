@@ -101,7 +101,7 @@ func (m *Manager) spawnMiniProgramAgent(c *gin.Context) {
 			return errMiniProgramAgentAlreadyActive
 		}
 		var recentAttempts int64
-		if err := tx.Model(&schema.MiniProgramAgentTask{}).Where("user_id = ? AND created_at >= ?", userID, time.Now().UTC().Add(-time.Hour)).Count(&recentAttempts).Error; err != nil {
+		if err := tx.Model(&schema.MiniProgramAgentTask{}).Where("user_id = ? AND created_at >= ? AND status <> ?", userID, time.Now().UTC().Add(-time.Hour), schema.MiniProgramTaskStopped).Count(&recentAttempts).Error; err != nil {
 			return err
 		}
 		if recentAttempts >= 3 {
@@ -349,7 +349,7 @@ func (m *Manager) provisionMiniProgramPod(ctx context.Context, task *schema.Mini
 	if err != nil {
 		return err
 	}
-	pod := schema.HymatrixPod{ID: "pod_" + strings.ReplaceAll(uuid.NewString(), "-", ""), UserID: task.UserID, Name: "财税助手", RuntimeType: cfg.RuntimeType, Status: schema.PodStatusSpawning, NodeURL: cfg.NodeURL, PrivateKey: cfg.PrivateKey, Module: cfg.Module, Scheduler: hymatrixConfig.Scheduler, AccessKeyID: accessKey.ID}
+	pod := schema.HymatrixPod{ID: "pod_" + strings.ReplaceAll(uuid.NewString(), "-", ""), UserID: task.UserID, Name: "财税助手", RuntimeType: cfg.RuntimeType, Status: schema.PodStatusSpawning, NodeURL: cfg.NodeURL, NodeAdminURL: cfg.NodeAdminURL, PrivateKey: cfg.PrivateKey, Module: cfg.Module, Scheduler: hymatrixConfig.Scheduler, AccessKeyID: accessKey.ID}
 	pod.PID = "pending_" + pod.ID
 	if err := m.wdb.Db.Create(&pod).Error; err != nil {
 		return err

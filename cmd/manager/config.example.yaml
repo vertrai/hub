@@ -29,6 +29,8 @@ miniProgram:
   weixinAPIBase: https://api.weixin.qq.com
   pod:
     nodeURL: https://your-hymatrix-node.example
+    # Hymatrix Admin API 地址；若经同域反向代理暴露可与 nodeURL 相同。
+    nodeAdminURL: https://your-hymatrix-admin.example
     privateKey: ""
     module: ""
     runtimeType: hermes
