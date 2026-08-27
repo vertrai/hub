@@ -67,6 +67,8 @@ const statusLabels = {
   spawning: "创建中",
   spawned: "已提交",
   running: "运行中",
+  stopping: "停止中",
+  stopped: "已停止",
   failed: "失败",
 };
 

@@ -40,6 +40,7 @@ type recordingPodSDK struct {
 	spawnTags      []goarSchema.Tag
 	spawnErr       error
 	startTarget    string
+	startData      string
 	startPlain     []goarSchema.Tag
 	startEncrypted []goarSchema.Tag
 	startErr       error
@@ -54,9 +55,10 @@ func (s *recordingPodSDK) SpawnAndWait(_, _ string, tags []goarSchema.Tag) (*ser
 	return &serverSchema.Response{Id: "pid-new"}, nil
 }
 
-func (s *recordingPodSDK) SendMessageWithEncryptedParamsAndWait(target, _ string, plain, encrypted []goarSchema.Tag) (*serverSchema.Response, error) {
+func (s *recordingPodSDK) SendMessageWithEncryptedParamsAndWait(target, data string, plain, encrypted []goarSchema.Tag) (*serverSchema.Response, error) {
 	s.calls = append(s.calls, "start-agent")
 	s.startTarget = target
+	s.startData = data
 	s.startPlain = plain
 	s.startEncrypted = encrypted
 	if s.startErr != nil {
@@ -158,6 +160,33 @@ func TestStartAgentFailureReturnsMessageError(t *testing.T) {
 	}
 	if strings.Join(fake.calls, ",") != "start-agent" {
 		t.Fatalf("calls = %v", fake.calls)
+	}
+}
+
+func TestStopAgentUsesEvalWithoutContainerOrResourceParams(t *testing.T) {
+	fake := &recordingPodSDK{}
+	client := &HymatrixClient{config: HymatrixConfig{}, sdk: fake}
+	if err := client.StopAgent(t.Context(), "pid-running"); err != nil {
+		t.Fatal(err)
+	}
+	if fake.startTarget != "pid-running" {
+		t.Fatalf("target = %q", fake.startTarget)
+	}
+	assertTagsEqual(t, fake.startPlain, map[string]string{"Action": "Eval"})
+	if fake.startData != "hermes gateway stop" {
+		t.Fatalf("Eval data = %q", fake.startData)
+	}
+	if len(fake.startEncrypted) != 0 {
+		t.Fatalf("stop encrypted params = %#v", fake.startEncrypted)
+	}
+}
+
+func TestStopAgentReturnsMessageError(t *testing.T) {
+	fake := &recordingPodSDK{startErr: errors.New("message rejected")}
+	client := &HymatrixClient{sdk: fake}
+	err := client.StopAgent(t.Context(), "pid-running")
+	if err == nil || !strings.Contains(err.Error(), "stop Hermes agent: message rejected") {
+		t.Fatalf("error = %v", err)
 	}
 }
 

@@ -773,6 +773,7 @@
                     <option value="all">全部状态</option>
                     <option value="active">进行中</option>
                     <option value="running">运行中</option>
+                    <option value="stopped">已停止</option>
                     <option value="failed">失败</option>
                   </select>
                 </label>
@@ -860,6 +861,14 @@
       let allPods = [];
       let podPage = 1;
       const podPageSize = 20;
+      function canStopPod(pod) {
+        return ["spawned", "running"].includes(pod.status);
+      }
+      function podActionButtons(p) {
+        const start = p.status === "spawned" ? `<button type="button" class="pod-action pod-action-start" data-pod-start="${esc(p.id)}">启动</button>` : "";
+        const stop = canStopPod(p) ? `<button type="button" class="secondary pod-action" data-pod-stop="${esc(p.id)}">停止</button>` : "";
+        return `${start}${stop}<button type="button" class="secondary pod-action" data-pod-detail="${esc(p.id)}">详情</button>`;
+      }
       function showTelegramBotLink(link, username) {
         const container = $("telegramBotLink");
         const anchor = $("telegramBotAnchor");
@@ -1373,13 +1382,13 @@
         const rows = visible
           .map(
             (p) =>
-              `<tr><td><b>${esc(p.name)}</b><br><small>${esc(p.userId)}</small></td><td>${esc(p.runtimeType)}</td><td>${esc(p.module)}<br><small>${esc(p.scheduler)}</small></td><td>${esc(p.llmProvider || "—")} / ${esc(p.llmModel || "—")}</td><td>${esc(p.pid || "—")}</td><td>${esc(formatPodTime(p.createdAt))}</td><td>${pill(p.status)}</td><td><div class="pod-actions">${p.status === "spawned" ? `<button type="button" class="pod-action pod-action-start" data-pod-start="${esc(p.id)}">启动</button>` : ""}<button type="button" class="secondary pod-action" data-pod-detail="${esc(p.id)}">详情</button></div></td></tr>`,
+              `<tr><td><b>${esc(p.name)}</b><br><small>${esc(p.userId)}</small></td><td>${esc(p.runtimeType)}</td><td>${esc(p.module)}<br><small>${esc(p.scheduler)}</small></td><td>${esc(p.llmProvider || "—")} / ${esc(p.llmModel || "—")}</td><td>${esc(p.pid || "—")}</td><td>${esc(formatPodTime(p.createdAt))}</td><td>${pill(p.status)}</td><td><div class="pod-actions">${podActionButtons(p)}</div></td></tr>`,
           )
           .join("");
         const cards = visible
           .map(
             (p) =>
-              `<article class="pod-card"><div class="pod-card-head"><div><b>${esc(p.name)}</b><br><small>${esc(p.userId)}</small></div>${pill(p.status)}</div><dl><dt>Runtime</dt><dd>${esc(p.runtimeType)}</dd><dt>LLM</dt><dd>${esc(p.llmProvider || "—")} / ${esc(p.llmModel || "—")}</dd><dt>PID</dt><dd>${esc(p.pid || "—")}</dd><dt>创建时间</dt><dd>${esc(formatPodTime(p.createdAt))}</dd></dl><div class="pod-card-foot"><small>${p.error ? "有失败信息可查看" : "交易配置已隐藏敏感值"}</small><div class="pod-actions">${p.status === "spawned" ? `<button type="button" class="pod-action pod-action-start" data-pod-start="${esc(p.id)}">启动</button>` : ""}<button type="button" class="secondary pod-action" data-pod-detail="${esc(p.id)}">详情</button></div></div></article>`,
+              `<article class="pod-card"><div class="pod-card-head"><div><b>${esc(p.name)}</b><br><small>${esc(p.userId)}</small></div>${pill(p.status)}</div><dl><dt>Runtime</dt><dd>${esc(p.runtimeType)}</dd><dt>LLM</dt><dd>${esc(p.llmProvider || "—")} / ${esc(p.llmModel || "—")}</dd><dt>PID</dt><dd>${esc(p.pid || "—")}</dd><dt>创建时间</dt><dd>${esc(formatPodTime(p.createdAt))}</dd></dl><div class="pod-card-foot"><small>${p.error ? "有失败信息可查看" : "交易配置已隐藏敏感值"}</small><div class="pod-actions">${podActionButtons(p)}</div></div></article>`,
           )
           .join("");
         $("pods").innerHTML = `<div class="table-wrap pod-table"><table><thead><tr><th>Pod / 用户</th><th>Runtime</th><th>Module / Scheduler</th><th>LLM</th><th>PID</th><th>创建时间</th><th>状态</th><th></th></tr></thead><tbody>${rows}</tbody></table></div><div class="pod-cards">${cards}</div>`;
@@ -1444,6 +1453,11 @@
         renderPods();
       };
       $("pods").onclick = (event) => {
+        const stopButton = event.target.closest("[data-pod-stop]");
+        if (stopButton) {
+          stopPod(stopButton.dataset.podStop, stopButton);
+          return;
+        }
         const startButton = event.target.closest("[data-pod-start]");
         if (startButton) {
           openStartAgent(startButton.dataset.podStart);
@@ -1452,6 +1466,18 @@
         const button = event.target.closest("[data-pod-detail]");
         if (button) openPodDetail(button.dataset.podDetail);
       };
+      async function stopPod(id, button) {
+        const pod = allPods.find((item) => item.id === id);
+        if (!pod || !canStopPod(pod) || !window.confirm(`确认停止 ${pod.name || pod.id} 中运行的 Hermes？\n\nPod 容器会继续运行，微信 Bot 和 Gateway API Key 绑定保持不变。`)) return;
+        setBusy(button, true, "停止中…");
+        try {
+          await adminRequest(`/v1/admin/hymatrix/pods/${encodeURIComponent(id)}/stop`, {method: "POST"});
+          await load();
+        } catch (error) {
+          window.alert(`停止失败：${error.message}`);
+          setBusy(button, false);
+        }
+      }
       $("podPagination").onclick = (event) => {
         const button = event.target.closest("[data-pod-page]");
         if (!button || button.disabled) return;
