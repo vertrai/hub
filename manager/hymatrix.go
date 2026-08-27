@@ -21,8 +21,6 @@ import (
 
 const containerEnvTagPrefix = "Container-Env-"
 
-const stopHermesEvalCommand = "hermes gateway stop"
-
 var nodeInfoHTTPClient = &http.Client{
 	Timeout: 10 * time.Second,
 	CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
@@ -97,18 +95,6 @@ func (h *HymatrixClient) StartAgent(_ context.Context, pid string, in PodStartIn
 	}
 	if _, err := h.sdk.SendMessageWithEncryptedParamsAndWait(pid, "", plain, secret); err != nil {
 		return fmt.Errorf("start Hermes agent: %w", err)
-	}
-	return nil
-}
-
-func (h *HymatrixClient) StopAgent(_ context.Context, pid string) error {
-	pid = strings.TrimSpace(pid)
-	if pid == "" {
-		return fmt.Errorf("pid is required")
-	}
-	params := []goarSchema.Tag{{Name: "Action", Value: "Eval"}}
-	if _, err := h.sdk.SendMessageWithEncryptedParamsAndWait(pid, stopHermesEvalCommand, params, nil); err != nil {
-		return fmt.Errorf("stop Hermes agent: %w", err)
 	}
 	return nil
 }

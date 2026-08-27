@@ -7,8 +7,6 @@ const (
 	PodStatusSpawned  = "spawned"
 	PodStatusStarting = "starting"
 	PodStatusRunning  = "running"
-	PodStatusStopping = "stopping"
-	PodStatusStopped  = "stopped"
 	PodStatusFailed   = "failed"
 )
 
