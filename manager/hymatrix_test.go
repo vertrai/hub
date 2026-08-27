@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"os/exec"
 	"strings"
 	"testing"
 
@@ -167,30 +166,15 @@ func TestStartAgentFailureReturnsMessageError(t *testing.T) {
 func TestStopAgentUsesEvalWithoutContainerOrResourceParams(t *testing.T) {
 	fake := &recordingPodSDK{}
 	client := &HymatrixClient{config: HymatrixConfig{}, sdk: fake}
-	auditFile, err := client.StopAgent(t.Context(), "pid-running")
-	if err != nil {
+	if err := client.StopAgent(t.Context(), "pid-running"); err != nil {
 		t.Fatal(err)
-	}
-	if !strings.HasPrefix(auditFile, "/tmp/hub-hermes-stop-") || !strings.HasSuffix(auditFile, ".log") {
-		t.Fatalf("audit file = %q", auditFile)
 	}
 	if fake.startTarget != "pid-running" {
 		t.Fatalf("target = %q", fake.startTarget)
 	}
 	assertTagsEqual(t, fake.startPlain, map[string]string{"Action": "Eval"})
-	for _, expected := range []string{
-		"audit_file=" + auditFile,
-		"command -v hermes",
-		`"$hermes_path" gateway stop`,
-		"stop_exit=$stop_exit",
-		"before_status_begin",
-		"after_status_begin",
-		`exit "$stop_exit"`,
-		`cp "$audit_file" /tmp/hub-hermes-stop.log`,
-	} {
-		if !strings.Contains(fake.startData, expected) {
-			t.Errorf("Eval data is missing %q: %q", expected, fake.startData)
-		}
+	if fake.startData != "hermes gateway stop" {
+		t.Fatalf("Eval data = %q", fake.startData)
 	}
 	if len(fake.startEncrypted) != 0 {
 		t.Fatalf("stop encrypted params = %#v", fake.startEncrypted)
@@ -200,16 +184,9 @@ func TestStopAgentUsesEvalWithoutContainerOrResourceParams(t *testing.T) {
 func TestStopAgentReturnsMessageError(t *testing.T) {
 	fake := &recordingPodSDK{startErr: errors.New("message rejected")}
 	client := &HymatrixClient{sdk: fake}
-	_, err := client.StopAgent(t.Context(), "pid-running")
+	err := client.StopAgent(t.Context(), "pid-running")
 	if err == nil || !strings.Contains(err.Error(), "stop Hermes agent: message rejected") {
 		t.Fatalf("error = %v", err)
-	}
-}
-
-func TestStopHermesEvalCommandHasValidShellSyntax(t *testing.T) {
-	command := stopHermesEvalCommand("/tmp/hub-hermes-stop-test.log")
-	if output, err := exec.Command("sh", "-n", "-c", command).CombinedOutput(); err != nil {
-		t.Fatalf("invalid stop Eval shell syntax: %v: %s", err, output)
 	}
 }
 

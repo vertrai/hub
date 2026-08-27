@@ -1471,8 +1471,7 @@
         if (!pod || !canStopPod(pod) || !window.confirm(`确认停止 ${pod.name || pod.id} 中运行的 Hermes？\n\nPod 容器会继续运行，微信 Bot 和 Gateway API Key 绑定保持不变。`)) return;
         setBusy(button, true, "停止中…");
         try {
-          const result = await adminRequest(`/v1/admin/hymatrix/pods/${encodeURIComponent(id)}/stop`, {method: "POST"});
-          window.alert(`停止命令已提交。\n本次审计文件：${result.auditFile}\n最新副本：/tmp/hub-hermes-stop.log`);
+          await adminRequest(`/v1/admin/hymatrix/pods/${encodeURIComponent(id)}/stop`, {method: "POST"});
           await load();
         } catch (error) {
           window.alert(`停止失败：${error.message}`);

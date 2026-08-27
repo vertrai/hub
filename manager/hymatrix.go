@@ -21,34 +21,7 @@ import (
 
 const containerEnvTagPrefix = "Container-Env-"
 
-func stopHermesEvalCommand(auditFile string) string {
-	return fmt.Sprintf(`audit_file=%s
-{
-  echo "started_at=$(date -Iseconds)"
-  echo "user=$(id -un) uid=$(id -u)"
-  echo "home=$HOME"
-  echo "path=$PATH"
-  hermes_path=$(command -v hermes || true)
-  echo "hermes_path=$hermes_path"
-  if [ -z "$hermes_path" ]; then
-    echo "error=hermes command not found"
-    stop_exit=127
-  else
-    echo "before_status_begin"
-    "$hermes_path" gateway status || true
-    echo "before_status_end"
-    "$hermes_path" gateway stop
-    stop_exit=$?
-    echo "stop_exit=$stop_exit"
-    echo "after_status_begin"
-    "$hermes_path" gateway status || true
-    echo "after_status_end"
-  fi
-  echo "finished_at=$(date -Iseconds)"
-} >"$audit_file" 2>&1
-cp "$audit_file" /tmp/hub-hermes-stop.log
-exit "$stop_exit"`, auditFile)
-}
+const stopHermesEvalCommand = "hermes gateway stop"
 
 var nodeInfoHTTPClient = &http.Client{
 	Timeout: 10 * time.Second,
@@ -128,17 +101,16 @@ func (h *HymatrixClient) StartAgent(_ context.Context, pid string, in PodStartIn
 	return nil
 }
 
-func (h *HymatrixClient) StopAgent(_ context.Context, pid string) (string, error) {
+func (h *HymatrixClient) StopAgent(_ context.Context, pid string) error {
 	pid = strings.TrimSpace(pid)
 	if pid == "" {
-		return "", fmt.Errorf("pid is required")
+		return fmt.Errorf("pid is required")
 	}
-	auditFile := "/tmp/hub-hermes-stop-" + strconv.FormatInt(time.Now().UnixNano(), 10) + ".log"
 	params := []goarSchema.Tag{{Name: "Action", Value: "Eval"}}
-	if _, err := h.sdk.SendMessageWithEncryptedParamsAndWait(pid, stopHermesEvalCommand(auditFile), params, nil); err != nil {
-		return "", fmt.Errorf("stop Hermes agent: %w", err)
+	if _, err := h.sdk.SendMessageWithEncryptedParamsAndWait(pid, stopHermesEvalCommand, params, nil); err != nil {
+		return fmt.Errorf("stop Hermes agent: %w", err)
 	}
-	return auditFile, nil
+	return nil
 }
 
 func buildPodSpawnTags(config HymatrixConfig, in PodSpawnInput) ([]goarSchema.Tag, error) {
