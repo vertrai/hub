@@ -1,7 +1,6 @@
 package manager
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -28,8 +27,6 @@ var nodeInfoHTTPClient = &http.Client{
 		return http.ErrUseLastResponse
 	},
 }
-
-var hymatrixAdminHTTPClient = &http.Client{Timeout: 30 * time.Second}
 
 type HymatrixNodeInfo struct {
 	Protocol    string `json:"Protocol"`
@@ -226,49 +223,4 @@ func fetchHymatrixNodeInfo(ctx context.Context, nodeURL string) (HymatrixNodeInf
 
 func isBlockedNodeAddress(ip net.IP) bool {
 	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified()
-}
-
-func stopHymatrixVM(ctx context.Context, adminURL, pid string) error {
-	adminURL, pid = strings.TrimSpace(adminURL), strings.TrimSpace(pid)
-	parsed, err := url.Parse(adminURL)
-	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || parsed.User != nil {
-		return fmt.Errorf("invalid Hymatrix admin URL")
-	}
-	if pid == "" || strings.HasPrefix(pid, "pending_") {
-		return fmt.Errorf("valid pod pid is required")
-	}
-	parsed.Path = strings.TrimRight(parsed.Path, "/") + "/admin/vms/stop"
-	parsed.RawQuery, parsed.Fragment = "", ""
-	body, err := json.Marshal(map[string]string{"pid": pid})
-	if err != nil {
-		return err
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, parsed.String(), bytes.NewReader(body))
-	if err != nil {
-		return fmt.Errorf("create Hymatrix stop request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	res, err := hymatrixAdminHTTPClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("stop Hymatrix pod: %w", err)
-	}
-	defer res.Body.Close()
-	responseBody, err := io.ReadAll(io.LimitReader(res.Body, (1<<20)+1))
-	if err != nil {
-		return fmt.Errorf("read Hymatrix stop response: %w", err)
-	}
-	if len(responseBody) > 1<<20 {
-		return fmt.Errorf("Hymatrix stop response exceeds 1 MiB")
-	}
-	if res.StatusCode < http.StatusOK || res.StatusCode >= http.StatusMultipleChoices {
-		var envelope struct {
-			Error string `json:"error"`
-		}
-		_ = json.Unmarshal(responseBody, &envelope)
-		if envelope.Error == "" {
-			envelope.Error = res.Status
-		}
-		return fmt.Errorf("stop Hymatrix pod: %s", envelope.Error)
-	}
-	return nil
 }

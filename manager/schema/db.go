@@ -7,8 +7,6 @@ const (
 	PodStatusSpawned  = "spawned"
 	PodStatusStarting = "starting"
 	PodStatusRunning  = "running"
-	PodStatusStopping = "stopping"
-	PodStatusStopped  = "stopped"
 	PodStatusFailed   = "failed"
 )
 
@@ -18,7 +16,6 @@ const (
 	MiniProgramTaskRefreshingQR     = "REFRESHING_WECHAT_QR"
 	MiniProgramTaskStartingAgent    = "STARTING_AGENT"
 	MiniProgramTaskRunning          = "RUNNING"
-	MiniProgramTaskStopped          = "STOPPED"
 	MiniProgramTaskQRExpired        = "QR_EXPIRED"
 	MiniProgramTaskFailed           = "FAILED"
 )
@@ -55,7 +52,6 @@ type HymatrixPod struct {
 	PID           string    `gorm:"size:160;uniqueIndex" json:"pid"`
 	Status        string    `gorm:"size:24;not null;index" json:"status"`
 	NodeURL       string    `gorm:"type:text;not null" json:"nodeUrl"`
-	NodeAdminURL  string    `gorm:"type:text" json:"nodeAdminUrl,omitempty"`
 	PrivateKey    string    `gorm:"type:text;not null" json:"-"`
 	Module        string    `gorm:"type:text;not null" json:"module"`
 	Scheduler     string    `gorm:"type:text;not null" json:"scheduler"`

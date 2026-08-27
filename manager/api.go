@@ -51,7 +51,6 @@ func (m *Manager) router() *gin.Engine {
 	}
 	admin.POST("/hymatrix/pods", m.spawnPod)
 	admin.POST("/hymatrix/pods/:id/start", m.startPod)
-	admin.POST("/hymatrix/pods/:id/stop", m.stopPod)
 	admin.GET("/hymatrix/pods", m.listPods)
 	admin.GET("/hymatrix/node-info", m.hymatrixNodeInfo)
 	admin.POST("/weixin/onboarding", m.startWeixinOnboarding)
@@ -279,7 +278,7 @@ func (m *Manager) spawnPod(c *gin.Context) {
 		return
 	}
 	var req struct {
-		UserID, Name, RuntimeType, NodeURL, NodeAdminURL, PrivateKey, Module string
+		UserID, Name, RuntimeType, NodeURL, PrivateKey, Module string
 	}
 	if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.UserID) == "" || strings.TrimSpace(req.RuntimeType) == "" || strings.TrimSpace(req.NodeURL) == "" || strings.TrimSpace(req.PrivateKey) == "" || strings.TrimSpace(req.Module) == "" {
 		c.JSON(400, gin.H{"error": "userId, runtimeType, nodeUrl, privateKey and module are required"})
@@ -306,7 +305,7 @@ func (m *Manager) spawnPod(c *gin.Context) {
 		return
 	}
 	podID := "pod_" + strings.ReplaceAll(uuid.NewString(), "-", "")
-	pod := schema.HymatrixPod{ID: podID, UserID: req.UserID, Name: req.Name, RuntimeType: req.RuntimeType, PID: "pending_" + podID, Status: schema.PodStatusSpawning, NodeURL: req.NodeURL, NodeAdminURL: strings.TrimRight(strings.TrimSpace(req.NodeAdminURL), "/"), PrivateKey: req.PrivateKey, Module: req.Module, Scheduler: scheduler}
+	pod := schema.HymatrixPod{ID: podID, UserID: req.UserID, Name: req.Name, RuntimeType: req.RuntimeType, PID: "pending_" + podID, Status: schema.PodStatusSpawning, NodeURL: req.NodeURL, PrivateKey: req.PrivateKey, Module: req.Module, Scheduler: scheduler}
 	if pod.Name == "" {
 		pod.Name = req.RuntimeType
 	}
@@ -485,60 +484,6 @@ func (m *Manager) hymatrixNodeInfo(c *gin.Context) {
 		"nodeVersion": info.NodeVersion,
 		"protocol":    info.Protocol,
 	})
-}
-func (m *Manager) stopPod(c *gin.Context) {
-	if m.wdb == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "manager database is unavailable"})
-		return
-	}
-	var pod schema.HymatrixPod
-	if err := m.wdb.Db.First(&pod, "id = ?", c.Param("id")).Error; errors.Is(err, gorm.ErrRecordNotFound) {
-		c.JSON(http.StatusNotFound, gin.H{"error": "pod not found"})
-		return
-	} else if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	previousStatus := pod.Status
-	if previousStatus != schema.PodStatusSpawned && previousStatus != schema.PodStatusRunning {
-		c.JSON(http.StatusConflict, gin.H{"error": "only a spawned or running pod can be stopped"})
-		return
-	}
-	result := m.wdb.Db.Model(&schema.HymatrixPod{}).Where("id = ? AND status = ?", pod.ID, previousStatus).Updates(map[string]any{"status": schema.PodStatusStopping, "error": ""})
-	if result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
-		return
-	}
-	if result.RowsAffected != 1 {
-		c.JSON(http.StatusConflict, gin.H{"error": "pod stop was requested concurrently"})
-		return
-	}
-	adminURL := pod.NodeAdminURL
-	if adminURL == "" {
-		adminURL = pod.NodeURL
-	}
-	if err := stopHymatrixVM(c.Request.Context(), adminURL, pod.PID); err != nil {
-		_ = m.wdb.Db.Model(&schema.HymatrixPod{}).Where("id = ? AND status = ?", pod.ID, schema.PodStatusStopping).Updates(map[string]any{"status": previousStatus, "error": err.Error()}).Error
-		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
-		return
-	}
-	if err := m.wdb.Db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&schema.AccessKey{}).Where("assigned_pod_id = ?", pod.ID).Updates(map[string]any{"status": "available", "assigned_pod_id": nil}).Error; err != nil {
-			return err
-		}
-		if err := tx.Model(&schema.WeixinBot{}).Where("assigned_pod_id = ?", pod.ID).Updates(map[string]any{"status": schema.WeixinBotStatusAvailable, "assigned_pod_id": nil}).Error; err != nil {
-			return err
-		}
-		if err := tx.Model(&schema.MiniProgramAgentTask{}).Where("pod_id = ?", pod.ID).Updates(map[string]any{"status": schema.MiniProgramTaskStopped, "pod_id": "", "error": ""}).Error; err != nil {
-			return err
-		}
-		return tx.Model(&schema.HymatrixPod{}).Where("id = ? AND status = ?", pod.ID, schema.PodStatusStopping).Updates(map[string]any{"status": schema.PodStatusStopped, "error": ""}).Error
-	}); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("pod was stopped but local resources could not be released: %v", err)})
-		return
-	}
-	pod.Status, pod.Error = schema.PodStatusStopped, ""
-	c.JSON(http.StatusOK, gin.H{"pod": pod})
 }
 func (m *Manager) listPods(c *gin.Context) {
 	var pods []schema.HymatrixPod
