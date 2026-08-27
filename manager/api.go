@@ -514,8 +514,9 @@ func (m *Manager) stopPod(c *gin.Context) {
 		return
 	}
 	client, err := NewHymatrixClient(HymatrixConfig{NodeURL: pod.NodeURL, PrivateKey: pod.PrivateKey, Module: pod.Module, Scheduler: pod.Scheduler})
+	auditFile := ""
 	if err == nil {
-		err = client.StopAgent(c.Request.Context(), pod.PID)
+		auditFile, err = client.StopAgent(c.Request.Context(), pod.PID)
 	}
 	if err != nil {
 		_ = m.wdb.Db.Model(&schema.HymatrixPod{}).Where("id = ? AND status = ?", pod.ID, schema.PodStatusStopping).Updates(map[string]any{"status": previousStatus, "error": err.Error()}).Error
@@ -527,7 +528,7 @@ func (m *Manager) stopPod(c *gin.Context) {
 		return
 	}
 	pod.Status, pod.Error = schema.PodStatusStopped, ""
-	c.JSON(http.StatusOK, gin.H{"pod": pod})
+	c.JSON(http.StatusOK, gin.H{"pod": pod, "auditFile": auditFile})
 }
 func (m *Manager) listPods(c *gin.Context) {
 	var pods []schema.HymatrixPod
