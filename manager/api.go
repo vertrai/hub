@@ -14,6 +14,7 @@ import (
 	"github.com/vertrai/hub/manager/schema"
 	gatewayweb "github.com/vertrai/hub/web"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 func (m *Manager) router() *gin.Engine {
@@ -51,6 +52,7 @@ func (m *Manager) router() *gin.Engine {
 	}
 	admin.POST("/hymatrix/pods", m.spawnPod)
 	admin.POST("/hymatrix/pods/:id/start", m.startPod)
+	admin.DELETE("/hymatrix/pods/:id", m.deletePod)
 	admin.GET("/hymatrix/pods", m.listPods)
 	admin.GET("/hymatrix/node-info", m.hymatrixNodeInfo)
 	admin.POST("/weixin/onboarding", m.startWeixinOnboarding)
@@ -485,6 +487,87 @@ func (m *Manager) hymatrixNodeInfo(c *gin.Context) {
 		"protocol":    info.Protocol,
 	})
 }
+func (m *Manager) deletePod(c *gin.Context) {
+	if m.wdb == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "manager database is unavailable"})
+		return
+	}
+	podID := c.Param("id")
+	attemptIDs := []string{}
+	deletedTasks := int64(0)
+	err := m.wdb.Db.Transaction(func(tx *gorm.DB) error {
+		var pod schema.HymatrixPod
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&pod, "id = ?", podID).Error; err != nil {
+			return err
+		}
+		if pod.Status == schema.PodStatusSpawning || pod.Status == schema.PodStatusStarting {
+			return errPodDeletionInProgress
+		}
+		var tasks []schema.MiniProgramAgentTask
+		taskScope := "pod_id = ? OR (user_id = ? AND pod_id = '' AND status = ?)"
+		taskScopeArgs := []any{pod.ID, pod.UserID, "DELETED"}
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id", "status", "weixin_attempt_id").Where(taskScope, taskScopeArgs...).Find(&tasks).Error; err != nil {
+			return err
+		}
+		for _, task := range tasks {
+			if miniProgramTaskDeletionInProgress(task.Status) {
+				return errPodDeletionInProgress
+			}
+			if task.WeixinAttemptID != "" {
+				attemptIDs = append(attemptIDs, task.WeixinAttemptID)
+			}
+		}
+		if podDeletionRequiresRuntimeStopConfirmation(pod.Status) && c.Query("confirmRuntimeStopped") != "true" {
+			return errPodRuntimeStopConfirmationRequired
+		}
+		if err := tx.Model(&schema.AccessKey{}).Where("assigned_pod_id = ?", pod.ID).Updates(map[string]any{"status": "available", "assigned_pod_id": nil}).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&schema.WeixinBot{}).Where("assigned_pod_id = ?", pod.ID).Updates(map[string]any{"status": schema.WeixinBotStatusAvailable, "assigned_pod_id": nil}).Error; err != nil {
+			return err
+		}
+		result := tx.Where(taskScope, taskScopeArgs...).Delete(&schema.MiniProgramAgentTask{})
+		if result.Error != nil {
+			return result.Error
+		}
+		deletedTasks = result.RowsAffected
+		return tx.Delete(&pod).Error
+	})
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "pod not found"})
+		return
+	}
+	if errors.Is(err, errPodDeletionInProgress) {
+		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		return
+	}
+	if errors.Is(err, errPodRuntimeStopConfirmationRequired) {
+		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	for _, attemptID := range attemptIDs {
+		m.consumeWeixinAttempt(attemptID)
+	}
+	c.JSON(http.StatusOK, gin.H{"deleted": true, "podId": podID, "deletedMiniProgramTasks": deletedTasks})
+}
+
+var (
+	errPodDeletionInProgress              = errors.New("cannot delete a pod while its provisioning or startup task is in progress")
+	errPodRuntimeStopConfirmationRequired = errors.New("confirm that the external runtime was stopped before deleting a running pod")
+)
+
+func miniProgramTaskDeletionInProgress(status string) bool {
+	return status == schema.MiniProgramTaskSpawning || status == schema.MiniProgramTaskRefreshingQR || status == schema.MiniProgramTaskStartingAgent
+}
+
+func podDeletionRequiresRuntimeStopConfirmation(status string) bool {
+	return status != schema.PodStatusSpawned && status != schema.PodStatusFailed
+}
+
 func (m *Manager) listPods(c *gin.Context) {
 	var pods []schema.HymatrixPod
 	if m.wdb == nil {

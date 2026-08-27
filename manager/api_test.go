@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/vertrai/hub/manager/schema"
 )
 
 func authenticateAdmin(service *Manager, request *http.Request) {
@@ -35,6 +37,43 @@ func TestAdminRequiresGoogleSession(t *testing.T) {
 	service.router().ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/v1/admin/users", nil))
 	if recorder.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d", recorder.Code)
+	}
+}
+
+func TestDeletePodRouteRequiresManagerDatabase(t *testing.T) {
+	service, _ := New("test", Config{}, nil)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodDelete, "/v1/admin/hymatrix/pods/pod-test", nil)
+	authenticateAdmin(service, request)
+	service.router().ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestMiniProgramTaskDeletionInProgress(t *testing.T) {
+	for _, status := range []string{schema.MiniProgramTaskSpawning, schema.MiniProgramTaskRefreshingQR, schema.MiniProgramTaskStartingAgent} {
+		if !miniProgramTaskDeletionInProgress(status) {
+			t.Errorf("status %q should block deletion", status)
+		}
+	}
+	for _, status := range []string{schema.MiniProgramTaskWaitingForWeixin, schema.MiniProgramTaskRunning, schema.MiniProgramTaskQRExpired, schema.MiniProgramTaskFailed} {
+		if miniProgramTaskDeletionInProgress(status) {
+			t.Errorf("status %q should allow deletion", status)
+		}
+	}
+}
+
+func TestPodDeletionRequiresRuntimeStopConfirmation(t *testing.T) {
+	for _, status := range []string{schema.PodStatusRunning, "stopped", "unknown"} {
+		if !podDeletionRequiresRuntimeStopConfirmation(status) {
+			t.Errorf("status %q should require runtime stop confirmation", status)
+		}
+	}
+	for _, status := range []string{schema.PodStatusSpawned, schema.PodStatusFailed} {
+		if podDeletionRequiresRuntimeStopConfirmation(status) {
+			t.Errorf("status %q should not require runtime stop confirmation", status)
+		}
 	}
 }
 

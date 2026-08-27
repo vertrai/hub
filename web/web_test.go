@@ -319,6 +319,10 @@ func TestHymatrixPodHistorySupportsFilteringAndDetails(t *testing.T) {
 		"function openPodDetail(id)",
 		"失败原因",
 		"data-pod-detail",
+		"data-pod-delete",
+		"function deletePod(id, button)",
+		"此操作不会停止 Hymatrix Pod、Docker 或 Hermes",
+		"我已手动停止 Hermes，继续删除",
 	} {
 		if !strings.Contains(body, expected) {
 			t.Errorf("Hymatrix Pod history is missing %q", expected)
