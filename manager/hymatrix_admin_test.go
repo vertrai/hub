@@ -25,7 +25,7 @@ func TestStopHymatrixVM(t *testing.T) {
 	defer server.Close()
 
 	service, _ := New("test", Config{}, nil)
-	if err := service.stopHymatrixVM(context.Background(), server.URL, "process-1"); err != nil {
+	if err := service.stopHymatrixVM(context.Background(), server.URL, "", "process-1"); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -39,7 +39,7 @@ func TestStopHymatrixVMTreatsMissingOrStoppedAsIdempotent(t *testing.T) {
 			}))
 			defer server.Close()
 			service, _ := New("test", Config{}, nil)
-			if err := service.stopHymatrixVM(context.Background(), server.URL, "process-1"); err != nil {
+			if err := service.stopHymatrixVM(context.Background(), server.URL, "", "process-1"); err != nil {
 				t.Fatal(err)
 			}
 		})
@@ -53,21 +53,21 @@ func TestStopHymatrixVMReturnsBusinessError(t *testing.T) {
 	}))
 	defer server.Close()
 	service, _ := New("test", Config{}, nil)
-	if err := service.stopHymatrixVM(context.Background(), server.URL, "process-1"); err == nil || err.Error() != "err_core_process_cannot_stop" {
+	if err := service.stopHymatrixVM(context.Background(), server.URL, "", "process-1"); err == nil || err.Error() != "err_core_process_cannot_stop" {
 		t.Fatalf("err = %v", err)
 	}
 }
 
 func TestHymatrixAdminURLSupportsLegacyPods(t *testing.T) {
 	service, _ := New("test", Config{}, nil)
-	if got := service.hymatrixAdminURL(""); got != defaultHymatrixAdminURL {
-		t.Fatalf("admin URL = %q", got)
+	if got, err := service.hymatrixAdminURL("", "http://52.220.233.136:8081/node"); err != nil || got != "http://52.220.233.136:9091" {
+		t.Fatalf("derived admin URL = %q, err = %v", got, err)
 	}
 	service.config.MiniProgram.AdminURL = "http://node.internal:9082"
-	if got := service.hymatrixAdminURL(""); got != "http://node.internal:9082" {
-		t.Fatalf("configured admin URL = %q", got)
+	if got, err := service.hymatrixAdminURL("", "http://node:8081"); err != nil || got != "http://node.internal:9082" {
+		t.Fatalf("configured admin URL = %q, err = %v", got, err)
 	}
-	if got := service.hymatrixAdminURL("http://pod-node:8082"); got != "http://pod-node:8082" {
-		t.Fatalf("pod admin URL = %q", got)
+	if got, err := service.hymatrixAdminURL("http://pod-node:9091", "http://node:8081"); err != nil || got != "http://pod-node:9091" {
+		t.Fatalf("pod admin URL = %q, err = %v", got, err)
 	}
 }

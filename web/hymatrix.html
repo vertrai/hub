@@ -696,9 +696,9 @@
                       >Admin API URL<input
                         id="adminUrl"
                         type="url"
-                        value="http://127.0.0.1:8082"
+                        value="http://52.220.233.136:9091"
                       /><small
-                        >仅由 Manager 服务端调用；Admin API 无认证，请保持绑定在 127.0.0.1。</small
+                        >Manager 从服务端调用；主机与 Node 相同，Admin 端口为 9091。</small
                       ></label
                     ><label
                       >Scheduler（自动获取）<input
@@ -1280,7 +1280,18 @@
         renderTxPreview();
         return scheduler;
       }
+      function syncAdminUrlFromNode() {
+        try {
+          const node = new URL($("nodeUrl").value.trim());
+          node.port = "9091";
+          node.pathname = "/";
+          node.search = "";
+          node.hash = "";
+          $("adminUrl").value = node.toString().replace(/\/$/, "");
+        } catch (_) {}
+      }
       $("nodeUrl").addEventListener("change", async () => {
+        syncAdminUrlFromNode();
         try {
           await resolveScheduler();
           showStatus($("status"), "Scheduler 已从 Node /info 自动获取", true);

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -16,23 +17,32 @@ type hymatrixAdminError struct {
 	Error string `json:"error"`
 }
 
-const defaultHymatrixAdminURL = "http://127.0.0.1:8082"
+const hymatrixAdminPort = "9091"
 
-func (m *Manager) hymatrixAdminURL(adminURL string) string {
+func (m *Manager) hymatrixAdminURL(adminURL, nodeURL string) (string, error) {
 	if value := strings.TrimSpace(adminURL); value != "" {
-		return value
+		return value, nil
 	}
 	if value := strings.TrimSpace(m.config.MiniProgram.AdminURL); value != "" {
-		return value
+		return value, nil
 	}
-	return defaultHymatrixAdminURL
+	base, err := url.Parse(strings.TrimSpace(nodeURL))
+	if err != nil || (base.Scheme != "http" && base.Scheme != "https") || base.Hostname() == "" {
+		return "", errors.New("cannot derive Hymx admin URL from node URL")
+	}
+	base.Host = net.JoinHostPort(base.Hostname(), hymatrixAdminPort)
+	base.Path, base.RawPath, base.RawQuery, base.Fragment = "", "", "", ""
+	return base.String(), nil
 }
 
-func (m *Manager) stopHymatrixVM(ctx context.Context, adminURL, pid string) error {
-	adminURL = m.hymatrixAdminURL(adminURL)
+func (m *Manager) stopHymatrixVM(ctx context.Context, adminURL, nodeURL, pid string) error {
 	pid = strings.TrimSpace(pid)
 	if pid == "" || strings.HasPrefix(pid, "pending_") {
 		return nil
+	}
+	adminURL, err := m.hymatrixAdminURL(adminURL, nodeURL)
+	if err != nil {
+		return err
 	}
 	base, err := url.Parse(adminURL)
 	if err != nil || (base.Scheme != "http" && base.Scheme != "https") || base.Host == "" {

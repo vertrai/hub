@@ -529,7 +529,7 @@ func (m *Manager) deletePod(c *gin.Context) {
 				attemptIDs = append(attemptIDs, task.WeixinAttemptID)
 			}
 		}
-		if err := m.stopHymatrixVM(c.Request.Context(), pod.AdminURL, pod.PID); err != nil {
+		if err := m.stopHymatrixVM(c.Request.Context(), pod.AdminURL, pod.NodeURL, pod.PID); err != nil {
 			return fmt.Errorf("%w: %v", errStopHymatrixVM, err)
 		}
 		if err := tx.Model(&schema.AccessKey{}).Where("assigned_pod_id = ?", pod.ID).Updates(map[string]any{"status": "available", "assigned_pod_id": nil}).Error; err != nil {
