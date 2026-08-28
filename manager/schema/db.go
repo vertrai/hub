@@ -52,6 +52,7 @@ type HymatrixPod struct {
 	PID           string    `gorm:"size:160;uniqueIndex" json:"pid"`
 	Status        string    `gorm:"size:24;not null;index" json:"status"`
 	NodeURL       string    `gorm:"type:text;not null" json:"nodeUrl"`
+	AdminURL      string    `gorm:"type:text;not null;default:''" json:"adminUrl"`
 	PrivateKey    string    `gorm:"type:text;not null" json:"-"`
 	Module        string    `gorm:"type:text;not null" json:"module"`
 	Scheduler     string    `gorm:"type:text;not null" json:"scheduler"`

@@ -29,6 +29,7 @@ miniProgram:
   weixinAPIBase: https://api.weixin.qq.com
   pod:
     nodeURL: https://your-hymatrix-node.example
+    adminURL: http://127.0.0.1:8082
     privateKey: ""
     module: ""
     runtimeType: hermes

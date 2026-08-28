@@ -21,12 +21,12 @@ type Config struct {
 }
 
 type MiniProgramConfig struct {
-	AppID, AppSecret, WeixinAPIBase string
-	NodeURL, PrivateKey, Module     string
-	RuntimeType, GatewayURL         string
-	HermesGatewayToken              string
-	LLMAPIKey, LLMBaseURL           string
-	LLMModel, LLMProvider           string
+	AppID, AppSecret, WeixinAPIBase       string
+	NodeURL, AdminURL, PrivateKey, Module string
+	RuntimeType, GatewayURL               string
+	HermesGatewayToken                    string
+	LLMAPIKey, LLMBaseURL                 string
+	LLMModel, LLMProvider                 string
 }
 
 type AdminGoogleConfig struct {
@@ -55,6 +55,7 @@ type Manager struct {
 	weixinClient          *http.Client
 	adminAuth             *adminAuthenticator
 	miniProgramHTTPClient *http.Client
+	hymatrixAdminClient   *http.Client
 }
 
 func New(env string, config Config, wdb *Wdb) (*Manager, error) {
@@ -82,6 +83,7 @@ func New(env string, config Config, wdb *Wdb) (*Manager, error) {
 		weixinClient:          &http.Client{Timeout: 15 * time.Second},
 		adminAuth:             auth,
 		miniProgramHTTPClient: &http.Client{Timeout: 10 * time.Second},
+		hymatrixAdminClient:   &http.Client{Timeout: 2 * time.Minute},
 	}, nil
 }
 

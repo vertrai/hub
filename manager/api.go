@@ -280,7 +280,7 @@ func (m *Manager) spawnPod(c *gin.Context) {
 		return
 	}
 	var req struct {
-		UserID, Name, RuntimeType, NodeURL, PrivateKey, Module string
+		UserID, Name, RuntimeType, NodeURL, AdminURL, PrivateKey, Module string
 	}
 	if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.UserID) == "" || strings.TrimSpace(req.RuntimeType) == "" || strings.TrimSpace(req.NodeURL) == "" || strings.TrimSpace(req.PrivateKey) == "" || strings.TrimSpace(req.Module) == "" {
 		c.JSON(400, gin.H{"error": "userId, runtimeType, nodeUrl, privateKey and module are required"})
@@ -307,7 +307,7 @@ func (m *Manager) spawnPod(c *gin.Context) {
 		return
 	}
 	podID := "pod_" + strings.ReplaceAll(uuid.NewString(), "-", "")
-	pod := schema.HymatrixPod{ID: podID, UserID: req.UserID, Name: req.Name, RuntimeType: req.RuntimeType, PID: "pending_" + podID, Status: schema.PodStatusSpawning, NodeURL: req.NodeURL, PrivateKey: req.PrivateKey, Module: req.Module, Scheduler: scheduler}
+	pod := schema.HymatrixPod{ID: podID, UserID: req.UserID, Name: req.Name, RuntimeType: req.RuntimeType, PID: "pending_" + podID, Status: schema.PodStatusSpawning, NodeURL: req.NodeURL, AdminURL: strings.TrimSpace(req.AdminURL), PrivateKey: req.PrivateKey, Module: req.Module, Scheduler: scheduler}
 	if pod.Name == "" {
 		pod.Name = req.RuntimeType
 	}
@@ -493,6 +493,18 @@ func (m *Manager) deletePod(c *gin.Context) {
 		return
 	}
 	podID := c.Param("id")
+	var target schema.HymatrixPod
+	if err := m.wdb.Db.First(&target, "id = ?", podID).Error; errors.Is(err, gorm.ErrRecordNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "pod not found"})
+		return
+	} else if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if target.Status == schema.PodStatusSpawning || target.Status == schema.PodStatusStarting {
+		c.JSON(http.StatusConflict, gin.H{"error": errPodDeletionInProgress.Error()})
+		return
+	}
 	attemptIDs := []string{}
 	deletedTasks := int64(0)
 	err := m.wdb.Db.Transaction(func(tx *gorm.DB) error {
@@ -517,8 +529,8 @@ func (m *Manager) deletePod(c *gin.Context) {
 				attemptIDs = append(attemptIDs, task.WeixinAttemptID)
 			}
 		}
-		if podDeletionRequiresRuntimeStopConfirmation(pod.Status) && c.Query("confirmRuntimeStopped") != "true" {
-			return errPodRuntimeStopConfirmationRequired
+		if err := m.stopHymatrixVM(c.Request.Context(), pod.AdminURL, pod.PID); err != nil {
+			return fmt.Errorf("%w: %v", errStopHymatrixVM, err)
 		}
 		if err := tx.Model(&schema.AccessKey{}).Where("assigned_pod_id = ?", pod.ID).Updates(map[string]any{"status": "available", "assigned_pod_id": nil}).Error; err != nil {
 			return err
@@ -541,8 +553,8 @@ func (m *Manager) deletePod(c *gin.Context) {
 		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 		return
 	}
-	if errors.Is(err, errPodRuntimeStopConfirmationRequired) {
-		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+	if errors.Is(err, errStopHymatrixVM) {
+		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return
 	}
 	if err != nil {
@@ -556,16 +568,12 @@ func (m *Manager) deletePod(c *gin.Context) {
 }
 
 var (
-	errPodDeletionInProgress              = errors.New("cannot delete a pod while its provisioning or startup task is in progress")
-	errPodRuntimeStopConfirmationRequired = errors.New("confirm that the external runtime was stopped before deleting a running pod")
+	errPodDeletionInProgress = errors.New("cannot delete a pod while its provisioning or startup task is in progress")
+	errStopHymatrixVM        = errors.New("stop Hymx VM")
 )
 
 func miniProgramTaskDeletionInProgress(status string) bool {
 	return status == schema.MiniProgramTaskSpawning || status == schema.MiniProgramTaskRefreshingQR || status == schema.MiniProgramTaskStartingAgent
-}
-
-func podDeletionRequiresRuntimeStopConfirmation(status string) bool {
-	return status != schema.PodStatusSpawned && status != schema.PodStatusFailed
 }
 
 func (m *Manager) listPods(c *gin.Context) {

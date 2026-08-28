@@ -693,6 +693,14 @@
                         Node.Acc-Id。</small
                       ></label
                     ><label
+                      >Admin API URL<input
+                        id="adminUrl"
+                        type="url"
+                        value="http://127.0.0.1:8082"
+                      /><small
+                        >仅由 Manager 服务端调用；Admin API 无认证，请保持绑定在 127.0.0.1。</small
+                      ></label
+                    ><label
                       >Scheduler（自动获取）<input
                         id="scheduler"
                         required
@@ -1394,7 +1402,7 @@
         const pod = allPods.find((item) => item.id === id);
         if (!pod) return;
         $("podDetailTitle").textContent = pod.name || "Pod 详情";
-        $("podDetailBody").innerHTML = `${pod.error ? `<div class="pod-error"><b>失败原因</b><br>${esc(pod.error)}</div>` : ""}<dl class="pod-detail-grid"><dt>状态</dt><dd>${pill(pod.status)}</dd><dt>用户</dt><dd>${esc(pod.userId)}</dd><dt>Runtime</dt><dd>${esc(pod.runtimeType)}</dd><dt>创建时间</dt><dd>${esc(formatPodTime(pod.createdAt))}</dd><dt>Node URL</dt><dd>${esc(pod.nodeUrl)}</dd><dt>Module</dt><dd>${esc(pod.module)}</dd><dt>Scheduler</dt><dd>${esc(pod.scheduler)}</dd><dt>PID</dt><dd>${esc(pod.pid || "—")}</dd><dt>LLM</dt><dd>${esc(pod.llmProvider || "—")} / ${esc(pod.llmModel || "—")}</dd><dt>LLM Base URL</dt><dd>${esc(pod.llmBaseUrl || "—")}</dd><dt>Access Key</dt><dd>${esc(pod.accessKeyId || "—")}</dd></dl>`;
+        $("podDetailBody").innerHTML = `${pod.error ? `<div class="pod-error"><b>失败原因</b><br>${esc(pod.error)}</div>` : ""}<dl class="pod-detail-grid"><dt>状态</dt><dd>${pill(pod.status)}</dd><dt>用户</dt><dd>${esc(pod.userId)}</dd><dt>Runtime</dt><dd>${esc(pod.runtimeType)}</dd><dt>创建时间</dt><dd>${esc(formatPodTime(pod.createdAt))}</dd><dt>Node URL</dt><dd>${esc(pod.nodeUrl)}</dd><dt>Admin API URL</dt><dd>${esc(pod.adminUrl || "未配置")}</dd><dt>Module</dt><dd>${esc(pod.module)}</dd><dt>Scheduler</dt><dd>${esc(pod.scheduler)}</dd><dt>PID</dt><dd>${esc(pod.pid || "—")}</dd><dt>LLM</dt><dd>${esc(pod.llmProvider || "—")} / ${esc(pod.llmModel || "—")}</dd><dt>LLM Base URL</dt><dd>${esc(pod.llmBaseUrl || "—")}</dd><dt>Access Key</dt><dd>${esc(pod.accessKeyId || "—")}</dd></dl>`;
         $("podDetail").showModal();
       }
       async function openStartAgent(id) {
@@ -1464,13 +1472,10 @@
       };
       async function deletePod(id, button) {
         const pod = allPods.find((item) => item.id === id);
-        if (!pod || !window.confirm(`确认从 Manager 数据库删除 ${pod.name || pod.id}？\n\n此操作不会停止 Hymatrix Pod、Docker 或 Hermes。请先自行停止旧 Hermes。删除会清理关联的小程序任务，并释放数据库中的微信 Bot 和 Gateway API Key 绑定，以便该微信用户重新创建 Pod。`)) return;
-        const runtimeStopConfirmationRequired = !["spawned", "failed"].includes(pod.status);
-        if (runtimeStopConfirmationRequired && !window.confirm("Manager 状态不能证明 Docker 中的 Hermes 已真正停止。请确认你已经手动停止 Hermes；继续删除将只清理 Manager 数据，不会停止运行时。\n\n我已手动停止 Hermes，继续删除？")) return;
+        if (!pod || !window.confirm(`确认停止并删除 ${pod.name || pod.id}？\n\nManager 将先通过 Hymx Admin API 停止 VM；成功后才删除数据库记录、清理关联的小程序任务，并释放微信 Bot 和 Gateway API Key 绑定。`)) return;
         setBusy(button, true, "删除中…");
         try {
-          const confirmation = runtimeStopConfirmationRequired ? "?confirmRuntimeStopped=true" : "";
-          await adminRequest(`/v1/admin/hymatrix/pods/${encodeURIComponent(id)}${confirmation}`, {method: "DELETE"});
+          await adminRequest(`/v1/admin/hymatrix/pods/${encodeURIComponent(id)}`, {method: "DELETE"});
           await Promise.all([load(), loadKeys(), loadWeixinBots()]);
         } catch (error) {
           window.alert(`删除失败：${error.message}`);
@@ -1537,6 +1542,7 @@
               name: $("name").value.trim(),
               runtimeType: $("runtimeType").value.trim(),
               nodeUrl: $("nodeUrl").value.trim(),
+              adminUrl: $("adminUrl").value.trim(),
               privateKey: $("privateKey").value.trim(),
               module: $("module").value.trim(),
             }),

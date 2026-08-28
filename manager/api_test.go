@@ -64,19 +64,6 @@ func TestMiniProgramTaskDeletionInProgress(t *testing.T) {
 	}
 }
 
-func TestPodDeletionRequiresRuntimeStopConfirmation(t *testing.T) {
-	for _, status := range []string{schema.PodStatusRunning, "stopped", "unknown"} {
-		if !podDeletionRequiresRuntimeStopConfirmation(status) {
-			t.Errorf("status %q should require runtime stop confirmation", status)
-		}
-	}
-	for _, status := range []string{schema.PodStatusSpawned, schema.PodStatusFailed} {
-		if podDeletionRequiresRuntimeStopConfirmation(status) {
-			t.Errorf("status %q should not require runtime stop confirmation", status)
-		}
-	}
-}
-
 func TestAdminResourceProxyUsesInternalKey(t *testing.T) {
 	resources := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v1/internal/google/accounts" {
