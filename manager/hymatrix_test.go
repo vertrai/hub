@@ -108,7 +108,7 @@ func TestResetWeixinSendsCommandAsEncryptedData(t *testing.T) {
 		t.Fatalf("target=%q data=%q", fake.startTarget, fake.messageData)
 	}
 	assertTagsEqual(t, fake.startPlain, map[string]string{"Action": "Eval"})
-	if len(fake.startEncrypted) != 1 || fake.startEncrypted[0].Name != "Data" || !strings.Contains(fake.startEncrypted[0].Value, "start-hermes reset-weixin") {
+	if len(fake.startEncrypted) != 1 || fake.startEncrypted[0].Name != "Data" || !strings.Contains(fake.startEncrypted[0].Value, "hermes gateway restart") || !strings.Contains(fake.startEncrypted[0].Value, "base64 -d") {
 		t.Fatalf("encrypted params = %#v", fake.startEncrypted)
 	}
 	if strings.Contains(fake.startEncrypted[0].Value, "secret-token") {

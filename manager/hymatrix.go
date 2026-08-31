@@ -133,11 +133,27 @@ func (h *HymatrixClient) ResetWeixin(_ context.Context, pid string, input Weixin
 	if strings.TrimSpace(pid) == "" || input.AccountID == "" || input.Token == "" || input.BaseURL == "" || input.AllowedUserID == "" {
 		return "", "", fmt.Errorf("pid and complete Weixin credentials are required")
 	}
-	payload, err := json.Marshal(input)
-	if err != nil {
-		return "", "", err
-	}
-	command := fmt.Sprintf("start-hermes reset-weixin %s > /tmp/reset-weixin.log 2>&1", shellQuote(base64.RawURLEncoding.EncodeToString(payload)))
+	encoded := func(value string) string { return base64.StdEncoding.EncodeToString([]byte(value)) }
+	command := fmt.Sprintf(`{
+set -eu
+env_file="$HOME/.hermes/.env"
+backup_file="${env_file}.weixin-reset-backup"
+temp_file="${env_file}.weixin-reset.$$"
+cp "$env_file" "$backup_file"
+restore() { cp "$backup_file" "$env_file"; rm -f "$temp_file"; }
+trap restore EXIT HUP INT TERM
+awk '!/^(WEIXIN_ACCOUNT_ID|WEIXIN_TOKEN|WEIXIN_BASE_URL|WEIXIN_ALLOWED_USERS|WEIXIN_DM_POLICY)=/' "$env_file" > "$temp_file"
+printf 'WEIXIN_ACCOUNT_ID=%%s\n' "$(printf %%s %s | base64 -d)" >> "$temp_file"
+printf 'WEIXIN_TOKEN=%%s\n' "$(printf %%s %s | base64 -d)" >> "$temp_file"
+printf 'WEIXIN_BASE_URL=%%s\n' "$(printf %%s %s | base64 -d)" >> "$temp_file"
+printf 'WEIXIN_ALLOWED_USERS=%%s\n' "$(printf %%s %s | base64 -d)" >> "$temp_file"
+printf 'WEIXIN_DM_POLICY=allowlist\n' >> "$temp_file"
+chmod 600 "$temp_file"
+mv "$temp_file" "$env_file"
+hermes gateway restart
+trap - EXIT HUP INT TERM
+rm -f "$backup_file"
+} > /tmp/reset-weixin.log 2>&1`, shellQuote(encoded(input.AccountID)), shellQuote(encoded(input.Token)), shellQuote(encoded(input.BaseURL)), shellQuote(encoded(input.AllowedUserID)))
 	res, err := h.sdk.SendMessageWithEncryptedParamsAndWait(pid, "", []goarSchema.Tag{{Name: "Action", Value: "Eval"}}, []goarSchema.Tag{{Name: "Data", Value: command}})
 	if err != nil {
 		return "", "", fmt.Errorf("reset Hermes Weixin: %w", err)
