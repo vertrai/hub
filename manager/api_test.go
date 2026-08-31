@@ -51,6 +51,18 @@ func TestDeletePodRouteRequiresManagerDatabase(t *testing.T) {
 	}
 }
 
+func TestEvalPodRouteRequiresManagerDatabase(t *testing.T) {
+	service, _ := New("test", Config{}, nil)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/v1/admin/hymatrix/pods/pod-test/eval", strings.NewReader(`{"command":"date"}`))
+	request.Header.Set("Content-Type", "application/json")
+	authenticateAdmin(service, request)
+	service.router().ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
 func TestMiniProgramTaskDeletionInProgress(t *testing.T) {
 	for _, status := range []string{schema.MiniProgramTaskSpawning, schema.MiniProgramTaskRefreshingQR, schema.MiniProgramTaskStartingAgent} {
 		if !miniProgramTaskDeletionInProgress(status) {

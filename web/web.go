@@ -37,6 +37,9 @@ var weixinHTML []byte
 //go:embed hymatrix.html
 var hymatrixHTML []byte
 
+//go:embed hymatrix_eval.html
+var hymatrixEvalHTML []byte
+
 //go:embed common.css
 var commonCSS []byte
 
@@ -57,6 +60,7 @@ func RegisterRoutes(routes *gin.Engine, authentication gin.HandlerFunc) {
 	protected.GET("/admin/telegram", func(c *gin.Context) { c.Data(http.StatusOK, "text/html; charset=utf-8", telegramHTML) })
 	protected.GET("/admin/weixin", func(c *gin.Context) { c.Data(http.StatusOK, "text/html; charset=utf-8", weixinHTML) })
 	protected.GET("/admin/hymatrix", func(c *gin.Context) { c.Data(http.StatusOK, "text/html; charset=utf-8", hymatrixHTML) })
+	protected.GET("/admin/hymatrix/eval", func(c *gin.Context) { c.Data(http.StatusOK, "text/html; charset=utf-8", hymatrixEvalHTML) })
 	protected.GET("/admin/test", testPage)
 	routes.GET("/admin/assets/common.css", func(c *gin.Context) { c.Data(http.StatusOK, "text/css; charset=utf-8", commonCSS) })
 	routes.GET("/admin/assets/admin-enhancements.css", func(c *gin.Context) { c.Data(http.StatusOK, "text/css; charset=utf-8", adminEnhancementsCSS) })

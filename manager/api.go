@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -52,6 +53,7 @@ func (m *Manager) router() *gin.Engine {
 	}
 	admin.POST("/hymatrix/pods", m.spawnPod)
 	admin.POST("/hymatrix/pods/:id/start", m.startPod)
+	admin.POST("/hymatrix/pods/:id/eval", m.evalPod)
 	admin.DELETE("/hymatrix/pods/:id", m.deletePod)
 	admin.GET("/hymatrix/pods", m.listPods)
 	admin.GET("/hymatrix/node-info", m.hymatrixNodeInfo)
@@ -69,6 +71,55 @@ func (m *Manager) router() *gin.Engine {
 		r.Handle(route.method, "/v1"+route.path, m.proxyGatewayResource("/v1"+route.path))
 	}
 	return r
+}
+
+func (m *Manager) evalPod(c *gin.Context) {
+	if m.wdb == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "manager database is unavailable"})
+		return
+	}
+	var pod schema.HymatrixPod
+	if err := m.wdb.Db.First(&pod, "id = ?", c.Param("id")).Error; errors.Is(err, gorm.ErrRecordNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "pod not found"})
+		return
+	} else if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if pod.Status != schema.PodStatusRunning {
+		c.JSON(http.StatusConflict, gin.H{"error": "Eval is only available for a running pod"})
+		return
+	}
+	if !strings.EqualFold(strings.TrimSpace(pod.RuntimeType), "hermes") {
+		c.JSON(http.StatusConflict, gin.H{"error": "Eval is only available for a Hermes runtime"})
+		return
+	}
+	if c.GetHeader("X-Hymatrix-Eval-Confirmation") != pod.ID {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "explicit Eval confirmation is required"})
+		return
+	}
+	var req struct {
+		Command string `json:"command"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "command is required"})
+		return
+	}
+	client, err := NewHymatrixClient(HymatrixConfig{NodeURL: pod.NodeURL, PrivateKey: pod.PrivateKey, Module: pod.Module, Scheduler: pod.Scheduler})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	actor := c.GetString("adminEmail")
+	commandHash := sha256.Sum256([]byte(req.Command))
+	messageID, runtimeResult, err := client.Eval(c.Request.Context(), pod.PID, req.Command)
+	if err != nil {
+		log.Warn("admin Eval failed", "actor", actor, "pod", pod.ID, "pid", pod.PID, "command_sha256", fmt.Sprintf("%x", commandHash), "command_bytes", len(req.Command), "err", err)
+		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		return
+	}
+	log.Info("admin Eval submitted", "actor", actor, "pod", pod.ID, "pid", pod.PID, "message_id", messageID, "command_sha256", fmt.Sprintf("%x", commandHash), "command_bytes", len(req.Command))
+	c.JSON(http.StatusOK, gin.H{"accepted": true, "messageId": messageID, "runtimeResult": runtimeResult, "podId": pod.ID, "pid": pod.PID})
 }
 
 func (m *Manager) runAPI(endpoint string) {

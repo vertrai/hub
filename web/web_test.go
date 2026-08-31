@@ -15,7 +15,7 @@ func TestRegisterRoutes(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	RegisterRoutes(router, allowAll)
-	for _, path := range []string{"/admin", "/admin/users", "/admin/google", "/admin/browser", "/admin/telegram", "/admin/weixin", "/admin/hymatrix", "/admin/test"} {
+	for _, path := range []string{"/admin", "/admin/users", "/admin/google", "/admin/browser", "/admin/telegram", "/admin/weixin", "/admin/hymatrix", "/admin/hymatrix/eval", "/admin/test"} {
 		recorder := httptest.NewRecorder()
 		request := httptest.NewRequest(http.MethodGet, path, nil)
 		router.ServeHTTP(recorder, request)
@@ -24,6 +24,20 @@ func TestRegisterRoutes(t *testing.T) {
 		}
 		if got := recorder.Header().Get("Content-Type"); got != "text/html; charset=utf-8" {
 			t.Fatalf("GET %s content type = %q", path, got)
+		}
+	}
+}
+
+func TestHymatrixEvalPageRequiresExplicitAcknowledgement(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	RegisterRoutes(router, allowAll)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/admin/hymatrix/eval", nil))
+	body := recorder.Body.String()
+	for _, expected := range []string{`id="podId"`, `id="command"`, `id="acknowledge"`, `Action=Eval`, `/eval`, "不返回命令输出", `"X-Hymatrix-Eval-Confirmation":pod.id`, `pod.runtimeType).toLowerCase()==="hermes"`} {
+		if !strings.Contains(body, expected) {
+			t.Errorf("Hymatrix Eval page is missing %q", expected)
 		}
 	}
 }

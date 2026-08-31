@@ -20,6 +20,7 @@ import (
 )
 
 const containerEnvTagPrefix = "Container-Env-"
+const maxEvalCommandBytes = 4096
 
 var nodeInfoHTTPClient = &http.Client{
 	Timeout: 10 * time.Second,
@@ -97,6 +98,27 @@ func (h *HymatrixClient) StartAgent(_ context.Context, pid string, in PodStartIn
 		return fmt.Errorf("start Hermes agent: %w", err)
 	}
 	return nil
+}
+
+func (h *HymatrixClient) Eval(_ context.Context, pid, command string) (string, string, error) {
+	pid = strings.TrimSpace(pid)
+	if pid == "" {
+		return "", "", fmt.Errorf("pid is required")
+	}
+	if strings.TrimSpace(command) == "" {
+		return "", "", fmt.Errorf("Eval command is required")
+	}
+	if len(command) > maxEvalCommandBytes {
+		return "", "", fmt.Errorf("Eval command exceeds %d bytes", maxEvalCommandBytes)
+	}
+	res, err := h.sdk.SendMessageWithEncryptedParamsAndWait(pid, command, []goarSchema.Tag{{Name: "Action", Value: "Eval"}}, nil)
+	if err != nil {
+		return "", "", fmt.Errorf("Eval Hermes runtime: %w", err)
+	}
+	if res == nil {
+		return "", "", fmt.Errorf("Eval Hermes runtime returned an empty response")
+	}
+	return res.Id, res.Message, nil
 }
 
 func buildPodSpawnTags(config HymatrixConfig, in PodSpawnInput) ([]goarSchema.Tag, error) {

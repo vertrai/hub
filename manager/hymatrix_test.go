@@ -43,6 +43,7 @@ type recordingPodSDK struct {
 	startPlain     []goarSchema.Tag
 	startEncrypted []goarSchema.Tag
 	startErr       error
+	messageData    string
 }
 
 func (s *recordingPodSDK) SpawnAndWait(_, _ string, tags []goarSchema.Tag) (*serverSchema.Response, error) {
@@ -54,15 +55,42 @@ func (s *recordingPodSDK) SpawnAndWait(_, _ string, tags []goarSchema.Tag) (*ser
 	return &serverSchema.Response{Id: "pid-new"}, nil
 }
 
-func (s *recordingPodSDK) SendMessageWithEncryptedParamsAndWait(target, _ string, plain, encrypted []goarSchema.Tag) (*serverSchema.Response, error) {
+func (s *recordingPodSDK) SendMessageWithEncryptedParamsAndWait(target, data string, plain, encrypted []goarSchema.Tag) (*serverSchema.Response, error) {
 	s.calls = append(s.calls, "start-agent")
 	s.startTarget = target
+	s.messageData = data
 	s.startPlain = plain
 	s.startEncrypted = encrypted
 	if s.startErr != nil {
 		return nil, s.startErr
 	}
-	return &serverSchema.Response{Id: "message-start"}, nil
+	return &serverSchema.Response{Id: "message-start", Message: `{"status":"started"}`}, nil
+}
+
+func TestEvalSendsCommandAsMessageData(t *testing.T) {
+	fake := &recordingPodSDK{}
+	client := &HymatrixClient{sdk: fake}
+
+	messageID, runtimeResult, err := client.Eval(t.Context(), "pid-existing", "printf test > /tmp/eval-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if messageID != "message-start" || runtimeResult != `{"status":"started"}` || fake.startTarget != "pid-existing" || fake.messageData != "printf test > /tmp/eval-test" {
+		t.Fatalf("messageID=%q runtimeResult=%q target=%q data=%q", messageID, runtimeResult, fake.startTarget, fake.messageData)
+	}
+	assertTagsEqual(t, fake.startPlain, map[string]string{"Action": "Eval"})
+	if len(fake.startEncrypted) != 0 {
+		t.Fatalf("encrypted tags = %#v", fake.startEncrypted)
+	}
+}
+
+func TestEvalRejectsEmptyOrOversizedCommand(t *testing.T) {
+	client := &HymatrixClient{sdk: &recordingPodSDK{}}
+	for _, command := range []string{"  ", strings.Repeat("x", maxEvalCommandBytes+1)} {
+		if _, _, err := client.Eval(t.Context(), "pid-existing", command); err == nil {
+			t.Fatalf("Eval command %q should fail", command)
+		}
+	}
 }
 
 func TestSpawnOnlyBuildsSpawnTransaction(t *testing.T) {
