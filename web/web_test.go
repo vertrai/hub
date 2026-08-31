@@ -211,7 +211,7 @@ func TestHymatrixPageIncludesLiveTransactionPreview(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/admin/hymatrix", nil))
 	body := recorder.Body.String()
-	for _, expected := range []string{"待发送 Spawn 交易", "Envelope", "Protocol tags", "Container environment", "Hub-Spawn-Timestamp", "显示敏感值", "复制预览", "telegramBotLink", "telegramAcquireHint", "当前 API Key 未开通 Telegram 资源", "/v1/admin/telegram/bot-link", "01 · Pod 基础配置", "02 · Node 配置", "http://52.220.233.136:8081", "1LYYgkP4nRmnvGi2EN9ERuyYyFDzUMkSFBYW4_2DuyI", "randomPodName", "advanced-config"} {
+	for _, expected := range []string{"待发送 Spawn 交易", "Envelope", "Protocol tags", "Container environment", "Hub-Spawn-Timestamp", "显示敏感值", "复制预览", "telegramBotLink", "telegramAcquireHint", "当前 API Key 未开通 Telegram 资源", "/v1/admin/telegram/bot-link", "01 · Pod 基础配置", "02 · Node 配置", "http://52.220.233.136:8081", "RBYmavpn0L4pTlgmJTKwlNz6BQ4J2FApFuxnLyK17sg", "randomPodName", "advanced-config"} {
 		if !strings.Contains(body, expected) {
 			t.Errorf("Hymatrix page is missing %q", expected)
 		}
