@@ -35,7 +35,7 @@ func TestHymatrixWeixinResetPageUsesEncryptedEvalData(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/admin/hymatrix/weixin-reset", nil))
 	body := recorder.Body.String()
-	for _, expected := range []string{`id="podId"`, `id="qr"`, "/v1/admin/weixin/onboarding", `/weixin/reset`, "botId", `params["Data"]`, "/tmp/reset-weixin.log"} {
+	for _, expected := range []string{`id="podId"`, `id="qr"`, "/v1/admin/weixin/onboarding", `/weixin/reset`, "botId", `params["Eval-Data"]`, "/tmp/reset-weixin.log"} {
 		if !strings.Contains(body, expected) {
 			t.Errorf("Hymatrix Weixin reset page is missing %q", expected)
 		}

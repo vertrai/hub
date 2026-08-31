@@ -154,7 +154,7 @@ hermes gateway restart
 trap - EXIT HUP INT TERM
 rm -f "$backup_file"
 } > /tmp/reset-weixin.log 2>&1`, shellQuote(encoded(input.AccountID)), shellQuote(encoded(input.Token)), shellQuote(encoded(input.BaseURL)), shellQuote(encoded(input.AllowedUserID)))
-	res, err := h.sdk.SendMessageWithEncryptedParamsAndWait(pid, "", []goarSchema.Tag{{Name: "Action", Value: "Eval"}}, []goarSchema.Tag{{Name: "Data", Value: command}})
+	res, err := h.sdk.SendMessageWithEncryptedParamsAndWait(pid, "", []goarSchema.Tag{{Name: "Action", Value: "Eval"}}, []goarSchema.Tag{{Name: "Eval-Data", Value: command}})
 	if err != nil {
 		return "", "", fmt.Errorf("reset Hermes Weixin: %w", err)
 	}
