@@ -93,6 +93,29 @@ func TestEvalRejectsEmptyOrOversizedCommand(t *testing.T) {
 	}
 }
 
+func TestResetWeixinSendsCommandAsEncryptedData(t *testing.T) {
+	fake := &recordingPodSDK{}
+	client := &HymatrixClient{sdk: fake}
+
+	messageID, runtimeResult, err := client.ResetWeixin(t.Context(), "pid-existing", WeixinResetInput{AccountID: "account", Token: "secret-token", BaseURL: "https://weixin.example", AllowedUserID: "user"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if messageID != "message-start" || runtimeResult != `{"status":"started"}` {
+		t.Fatalf("messageID=%q runtimeResult=%q", messageID, runtimeResult)
+	}
+	if fake.startTarget != "pid-existing" || fake.messageData != "" {
+		t.Fatalf("target=%q data=%q", fake.startTarget, fake.messageData)
+	}
+	assertTagsEqual(t, fake.startPlain, map[string]string{"Action": "Eval"})
+	if len(fake.startEncrypted) != 1 || fake.startEncrypted[0].Name != "Data" || !strings.Contains(fake.startEncrypted[0].Value, "start-hermes reset-weixin") {
+		t.Fatalf("encrypted params = %#v", fake.startEncrypted)
+	}
+	if strings.Contains(fake.startEncrypted[0].Value, "secret-token") {
+		t.Fatal("encrypted command should encode its credential payload")
+	}
+}
+
 func TestSpawnOnlyBuildsSpawnTransaction(t *testing.T) {
 	fake := &recordingPodSDK{}
 	client := &HymatrixClient{config: HymatrixConfig{

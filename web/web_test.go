@@ -15,7 +15,7 @@ func TestRegisterRoutes(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	RegisterRoutes(router, allowAll)
-	for _, path := range []string{"/admin", "/admin/users", "/admin/google", "/admin/browser", "/admin/telegram", "/admin/weixin", "/admin/hymatrix", "/admin/hymatrix/eval", "/admin/test"} {
+	for _, path := range []string{"/admin", "/admin/users", "/admin/google", "/admin/browser", "/admin/telegram", "/admin/weixin", "/admin/hymatrix", "/admin/hymatrix/eval", "/admin/hymatrix/weixin-reset", "/admin/test"} {
 		recorder := httptest.NewRecorder()
 		request := httptest.NewRequest(http.MethodGet, path, nil)
 		router.ServeHTTP(recorder, request)
@@ -24,6 +24,20 @@ func TestRegisterRoutes(t *testing.T) {
 		}
 		if got := recorder.Header().Get("Content-Type"); got != "text/html; charset=utf-8" {
 			t.Fatalf("GET %s content type = %q", path, got)
+		}
+	}
+}
+
+func TestHymatrixWeixinResetPageUsesEncryptedEvalData(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	RegisterRoutes(router, allowAll)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/admin/hymatrix/weixin-reset", nil))
+	body := recorder.Body.String()
+	for _, expected := range []string{`id="podId"`, `id="qr"`, "/v1/admin/weixin/onboarding", `/weixin/reset`, "botId", `params["Data"]`, "/tmp/reset-weixin.log"} {
+		if !strings.Contains(body, expected) {
+			t.Errorf("Hymatrix Weixin reset page is missing %q", expected)
 		}
 	}
 }

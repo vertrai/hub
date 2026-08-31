@@ -2,6 +2,7 @@ package manager
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -120,6 +121,34 @@ func (h *HymatrixClient) Eval(_ context.Context, pid, command string) (string, s
 	}
 	return res.Id, res.Message, nil
 }
+
+type WeixinResetInput struct {
+	AccountID     string `json:"accountId"`
+	Token         string `json:"token"`
+	BaseURL       string `json:"baseUrl"`
+	AllowedUserID string `json:"allowedUserId"`
+}
+
+func (h *HymatrixClient) ResetWeixin(_ context.Context, pid string, input WeixinResetInput) (string, string, error) {
+	if strings.TrimSpace(pid) == "" || input.AccountID == "" || input.Token == "" || input.BaseURL == "" || input.AllowedUserID == "" {
+		return "", "", fmt.Errorf("pid and complete Weixin credentials are required")
+	}
+	payload, err := json.Marshal(input)
+	if err != nil {
+		return "", "", err
+	}
+	command := fmt.Sprintf("start-hermes reset-weixin %s > /tmp/reset-weixin.log 2>&1", shellQuote(base64.RawURLEncoding.EncodeToString(payload)))
+	res, err := h.sdk.SendMessageWithEncryptedParamsAndWait(pid, "", []goarSchema.Tag{{Name: "Action", Value: "Eval"}}, []goarSchema.Tag{{Name: "Data", Value: command}})
+	if err != nil {
+		return "", "", fmt.Errorf("reset Hermes Weixin: %w", err)
+	}
+	if res == nil {
+		return "", "", fmt.Errorf("reset Hermes Weixin returned an empty response")
+	}
+	return res.Id, res.Message, nil
+}
+
+func shellQuote(value string) string { return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'" }
 
 func buildPodSpawnTags(config HymatrixConfig, in PodSpawnInput) ([]goarSchema.Tag, error) {
 	_ = config

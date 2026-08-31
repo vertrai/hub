@@ -54,6 +54,7 @@ func (m *Manager) router() *gin.Engine {
 	admin.POST("/hymatrix/pods", m.spawnPod)
 	admin.POST("/hymatrix/pods/:id/start", m.startPod)
 	admin.POST("/hymatrix/pods/:id/eval", m.evalPod)
+	admin.POST("/hymatrix/pods/:id/weixin/reset", m.resetPodWeixin)
 	admin.DELETE("/hymatrix/pods/:id", m.deletePod)
 	admin.GET("/hymatrix/pods", m.listPods)
 	admin.GET("/hymatrix/node-info", m.hymatrixNodeInfo)
