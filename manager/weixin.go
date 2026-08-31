@@ -31,6 +31,8 @@ type WeixinCredentials struct {
 }
 
 type weixinAttempt struct {
+	MiniProgramTaskID                               string
+	Submitting                                      bool
 	ID, UserID, PollSecret, QRContent, ProviderBase string
 	ExpiresAt, CredentialExpiresAt                  time.Time
 	Credentials                                     *WeixinCredentials

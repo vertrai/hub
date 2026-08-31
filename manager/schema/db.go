@@ -45,28 +45,29 @@ type AccessKey struct {
 func (AccessKey) TableName() string { return "manager_access_keys" }
 
 type HymatrixPod struct {
-	ID            string    `gorm:"primaryKey;size:80" json:"id"`
-	UserID        string    `gorm:"size:80;not null;index" json:"userId"`
-	Name          string    `gorm:"size:200;not null" json:"name"`
-	RuntimeType   string    `gorm:"size:80;not null" json:"runtimeType"`
-	PID           string    `gorm:"size:160;uniqueIndex" json:"pid"`
-	Status        string    `gorm:"size:24;not null;index" json:"status"`
-	NodeURL       string    `gorm:"type:text;not null" json:"nodeUrl"`
-	AdminURL      string    `gorm:"type:text;not null;default:''" json:"adminUrl"`
-	PrivateKey    string    `gorm:"type:text;not null" json:"-"`
-	Module        string    `gorm:"type:text;not null" json:"module"`
-	Scheduler     string    `gorm:"type:text;not null" json:"scheduler"`
-	LLMAPIKey     string    `gorm:"type:text" json:"-"`
-	LLMBaseURL    string    `gorm:"type:text" json:"llmBaseUrl,omitempty"`
-	LLMModel      string    `gorm:"size:200" json:"llmModel,omitempty"`
-	LLMProvider   string    `gorm:"size:80" json:"llmProvider,omitempty"`
-	GatewayAPIKey string    `gorm:"type:text" json:"-"`
-	AccessKeyID   string    `gorm:"size:80;not null;index:idx_manager_hymatrix_pods_access_key_history" json:"accessKeyId"`
-	BotToken      string    `gorm:"type:text" json:"-"`
-	WeixinBotID   string    `gorm:"size:80;index" json:"weixinBotId,omitempty"`
-	Error         string    `gorm:"type:text" json:"error,omitempty"`
-	CreatedAt     time.Time `json:"createdAt"`
-	UpdatedAt     time.Time `json:"updatedAt"`
+	WeixinResetPending bool      `gorm:"not null;default:false" json:"weixinResetPending"`
+	ID                 string    `gorm:"primaryKey;size:80" json:"id"`
+	UserID             string    `gorm:"size:80;not null;index" json:"userId"`
+	Name               string    `gorm:"size:200;not null" json:"name"`
+	RuntimeType        string    `gorm:"size:80;not null" json:"runtimeType"`
+	PID                string    `gorm:"size:160;uniqueIndex" json:"pid"`
+	Status             string    `gorm:"size:24;not null;index" json:"status"`
+	NodeURL            string    `gorm:"type:text;not null" json:"nodeUrl"`
+	AdminURL           string    `gorm:"type:text;not null;default:''" json:"adminUrl"`
+	PrivateKey         string    `gorm:"type:text;not null" json:"-"`
+	Module             string    `gorm:"type:text;not null" json:"module"`
+	Scheduler          string    `gorm:"type:text;not null" json:"scheduler"`
+	LLMAPIKey          string    `gorm:"type:text" json:"-"`
+	LLMBaseURL         string    `gorm:"type:text" json:"llmBaseUrl,omitempty"`
+	LLMModel           string    `gorm:"size:200" json:"llmModel,omitempty"`
+	LLMProvider        string    `gorm:"size:80" json:"llmProvider,omitempty"`
+	GatewayAPIKey      string    `gorm:"type:text" json:"-"`
+	AccessKeyID        string    `gorm:"size:80;not null;index:idx_manager_hymatrix_pods_access_key_history" json:"accessKeyId"`
+	BotToken           string    `gorm:"type:text" json:"-"`
+	WeixinBotID        string    `gorm:"size:80;index" json:"weixinBotId,omitempty"`
+	Error              string    `gorm:"type:text" json:"error,omitempty"`
+	CreatedAt          time.Time `json:"createdAt"`
+	UpdatedAt          time.Time `json:"updatedAt"`
 }
 
 func (HymatrixPod) TableName() string { return "manager_hymatrix_pods" }
