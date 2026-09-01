@@ -151,9 +151,22 @@ func TestXBotPageSupportsPurposeDesignationWorkflow(t *testing.T) {
 	RegisterRoutes(router, allowAll)
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/admin/xbot", nil))
-	for _, expected := range []string{"Xbox User 资源池", "指定为 Xbox User", "/v1/admin/xbox/bots", "/v1/admin/google/accounts", "复制账号密码", "purpose", "一个 API Key 只绑定一个 Google User"} {
+	for _, expected := range []string{"Xbox User 资源池", "指定为 Xbox User", "/v1/admin/xbox/bots", "/ready", "复制账号密码", "waiting_setup", "Xbox 已注册，标记可用"} {
 		if !strings.Contains(recorder.Body.String(), expected) {
 			t.Errorf("Xbox Bot page is missing %q", expected)
+		}
+	}
+}
+
+func TestGooglePageShowsPurposeAndXboxSetupActions(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	RegisterRoutes(router, allowAll)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/admin/google", nil))
+	for _, expected := range []string{"类型", "Xbox 设置状态", "设为 Xbox 类型", "Xbox 已注册，标记可用", "assignedAccessKeyId", "googleUserId"} {
+		if !strings.Contains(recorder.Body.String(), expected) {
+			t.Errorf("Google resource page is missing %q", expected)
 		}
 	}
 }

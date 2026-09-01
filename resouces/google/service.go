@@ -119,7 +119,11 @@ func (s *Service) AssignAccount(accessKeyID, purpose string) (schema.GoogleAccou
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
 		}
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).Where("status = ? AND purpose = ?", schema.StatusAvailable, purpose).Order("created_at").First(&account).Error; err != nil {
+		query := tx.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).Where("status = ? AND purpose = ?", schema.StatusAvailable, purpose)
+		if purpose == schema.GooglePurposeXbox {
+			query = query.Where("xbox_status = ?", schema.XboxStatusReady)
+		}
+		if err := query.Order("created_at").First(&account).Error; err != nil {
 			return err
 		}
 		now := time.Now()

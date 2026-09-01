@@ -47,6 +47,9 @@ func (m *Manager) router() *gin.Engine {
 	admin.POST("/browser/sessions/:id/close", func(c *gin.Context) {
 		m.proxyResource("/v1/internal/browser/sessions/" + url.PathEscape(c.Param("id")) + "/close")(c)
 	})
+	admin.PATCH("/xbox/bots/:id/ready", func(c *gin.Context) {
+		m.proxyResource("/v1/internal/xbox/bots/" + url.PathEscape(c.Param("id")) + "/ready")(c)
+	})
 	for _, route := range []struct{ method, path string }{
 		{http.MethodPost, "/google/accounts"}, {http.MethodPost, "/google/accounts/batch"}, {http.MethodGet, "/google/accounts"},
 		{http.MethodGet, "/browser/sessions"},

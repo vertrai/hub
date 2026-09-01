@@ -119,6 +119,25 @@ func TestAdminBrowserCloseProxyForwardsSessionID(t *testing.T) {
 	}
 }
 
+func TestAdminMarksXboxGoogleUserReady(t *testing.T) {
+	resources := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPatch || r.URL.Path != "/v1/internal/xbox/bots/google_123/ready" {
+			t.Errorf("request = %s %s", r.Method, r.URL.Path)
+		}
+		_, _ = io.WriteString(w, `{"bot":{"id":"google_123","xboxStatus":"ready"}}`)
+	}))
+	defer resources.Close()
+	service, _ := New("test", Config{Resources: ResourcesConfig{BaseURL: resources.URL, AdminAPIKey: "internal-secret", Timeout: time.Second}}, nil)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPatch, "/v1/admin/xbox/bots/google_123/ready", strings.NewReader(`{}`))
+	request.Header.Set("Content-Type", "application/json")
+	authenticateAdmin(service, request)
+	service.router().ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `"xboxStatus":"ready"`) {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
 func TestGatewayProxyForwardsGatewayKey(t *testing.T) {
 	resources := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer gw_sk_test" {
