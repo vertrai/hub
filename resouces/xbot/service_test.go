@@ -15,35 +15,34 @@ func testDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.AutoMigrate(&schema.AccessKey{}, &schema.GoogleAccount{}, &schema.XBotAccount{}); err != nil {
+	if err := db.AutoMigrate(&schema.AccessKey{}, &schema.GoogleAccount{}, &schema.GoogleAccountAssignment{}); err != nil {
 		t.Fatal(err)
 	}
 	return db
 }
 
-func TestPoolAllowsMultiplePendingBotsAndRegistrationWithoutGamertag(t *testing.T) {
+func addGoogleUser(t *testing.T, db *gorm.DB, suffix string) schema.GoogleAccount {
+	t.Helper()
+	row := schema.GoogleAccount{ID: "google_" + suffix, Email: suffix + "@example.com", Password: "password-" + suffix, GoogleUserID: "workspace_" + suffix, Purpose: schema.GooglePurposeGeneral, Status: schema.StatusAvailable}
+	if err := db.Create(&row).Error; err != nil {
+		t.Fatal(err)
+	}
+	return row
+}
+
+func TestDesignateReusesExistingGoogleUser(t *testing.T) {
 	db := testDB(t)
 	service := New(db)
-	for _, suffix := range []string{"one", "two"} {
-		google := schema.GoogleAccount{ID: "google_" + suffix, Email: suffix + "@example.com", Password: "password-" + suffix, GoogleUserID: "workspace_" + suffix, Status: schema.StatusAvailable}
-		if err := db.Create(&google).Error; err != nil {
-			t.Fatal(err)
-		}
-		bot, err := service.CreateFromGoogle(google)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if bot.Status != schema.XBotStatusPendingRegistration || bot.Gamertag != nil {
-			t.Fatalf("unexpected pending bot: %#v", bot)
-		}
+	google := addGoogleUser(t, db, "one")
+	xbox, err := service.Designate(google.ID)
+	if err != nil {
+		t.Fatal(err)
 	}
-	rows, err := service.List()
-	if err != nil || len(rows) != 2 {
-		t.Fatalf("bots=%d err=%v", len(rows), err)
+	if xbox.ID != google.ID || xbox.Email != google.Email || xbox.Password != google.Password || xbox.Purpose != schema.GooglePurposeXbox {
+		t.Fatalf("designated=%#v original=%#v", xbox, google)
 	}
-	registered, err := service.MarkRegistered(rows[0].ID, "")
-	if err != nil || registered.Status != schema.XBotStatusRegistered {
-		t.Fatalf("registered=%#v err=%v", registered, err)
+	if _, err := service.Designate(google.ID); err == nil {
+		t.Fatal("already designated user should not be designated twice")
 	}
 }
 
@@ -56,15 +55,8 @@ func TestAcquireIsIdempotentAndExclusivePerAccessKey(t *testing.T) {
 		}
 	}
 	for _, suffix := range []string{"one", "two"} {
-		google := schema.GoogleAccount{ID: "google_" + suffix, Email: suffix + "@example.com", Password: "password-" + suffix, GoogleUserID: "workspace_" + suffix, Status: schema.StatusAvailable}
-		if err := db.Create(&google).Error; err != nil {
-			t.Fatal(err)
-		}
-		bot, err := service.CreateFromGoogle(google)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := service.MarkRegistered(bot.ID, "tag_"+suffix); err != nil {
+		google := addGoogleUser(t, db, suffix)
+		if _, err := service.Designate(google.ID); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -74,14 +66,14 @@ func TestAcquireIsIdempotentAndExclusivePerAccessKey(t *testing.T) {
 	}
 	again, err := service.Acquire("key_one")
 	if err != nil || again.ID != first.ID || again.Password != first.Password {
-		t.Fatalf("repeat acquire returned %#v, err=%v; want %#v", again, err, first)
+		t.Fatalf("repeat=%#v err=%v want=%#v", again, err, first)
 	}
 	second, err := service.Acquire("key_two")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if second.ID == first.ID {
-		t.Fatalf("different keys acquired the same bot %q", first.ID)
+		t.Fatalf("different keys acquired %q", first.ID)
 	}
 	if _, err := service.Acquire("missing_key"); !errors.Is(err, gorm.ErrRecordNotFound) {
 		t.Fatalf("missing key error=%v", err)

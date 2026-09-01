@@ -3,7 +3,6 @@ package resouces
 import (
 	"crypto/subtle"
 	"errors"
-	"fmt"
 	"net/http"
 	"strings"
 	"sync"
@@ -44,7 +43,6 @@ func (g *Resouces) router() *gin.Engine {
 	admin.GET("/google/accounts", g.listGoogleAccounts)
 	admin.POST("/xbox/bots", g.createXBot)
 	admin.GET("/xbox/bots", g.listXBots)
-	admin.PATCH("/xbox/bots/:id/registration", g.registerXBot)
 	admin.GET("/browser/sessions", g.listBrowserSessions)
 	admin.POST("/browser/sessions/:id/close", g.closeBrowserSessionAdmin)
 	admin.POST("/telegram/bots", g.importTelegramBot)
@@ -69,21 +67,20 @@ func (g *Resouces) router() *gin.Engine {
 }
 
 func (g *Resouces) createXBot(c *gin.Context) {
-	if g.google.Domain() == "" {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Google Workspace creation domain is not configured"})
+	var req struct {
+		GoogleUserID string `json:"googleUserId"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.GoogleUserID) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "googleUserId is required"})
 		return
 	}
-	created, err := g.google.CreateAccounts(c.Request.Context(), 1, g.google.Domain())
-	if err != nil || len(created) != 1 {
-		if err == nil {
-			err = fmt.Errorf("Google account creator returned no account")
-		}
-		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+	bot, err := g.xbot.Designate(req.GoogleUserID)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Google user not found"})
 		return
 	}
-	bot, err := g.xbot.CreateFromGoogle(created[0])
 	if err != nil {
-		g.internalError(c, err)
+		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"bot": bot})
@@ -96,26 +93,6 @@ func (g *Resouces) listXBots(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"items": rows})
-}
-
-func (g *Resouces) registerXBot(c *gin.Context) {
-	var req struct {
-		Gamertag string `json:"gamertag"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
-		return
-	}
-	bot, err := g.xbot.MarkRegistered(c.Param("id"), req.Gamertag)
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		c.JSON(http.StatusNotFound, gin.H{"error": "XBot not found"})
-		return
-	}
-	if err != nil {
-		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"bot": bot})
 }
 
 func (g *Resouces) getXBotAccount(c *gin.Context) {
@@ -131,7 +108,7 @@ func (g *Resouces) getXBotAccount(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"account": gin.H{
 		"id": bot.ID, "username": bot.Email, "email": bot.Email, "password": bot.Password,
-		"gamertag": bot.Gamertag, "status": bot.Status,
+		"purpose": bot.Purpose, "status": bot.Status,
 	}})
 }
 
@@ -393,6 +370,24 @@ func (g *Resouces) listGoogleAccounts(c *gin.Context) {
 
 func (g *Resouces) getGoogleUser(c *gin.Context) {
 	principal := mustGatewayPrincipal(c)
+	purpose := strings.ToLower(strings.TrimSpace(c.Query("purpose")))
+	if purpose == schema.GooglePurposeXbox {
+		account, err := g.xbot.Acquire(principal.AccessKey.ID)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusConflict, gin.H{"error": "no Xbox Google user is available"})
+			return
+		}
+		if err != nil {
+			g.internalError(c, err)
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"googleUser": account})
+		return
+	}
+	if purpose != "" && purpose != schema.GooglePurposeGeneral {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported Google user purpose"})
+		return
+	}
 	account, err := g.google.AcquireAccount(c.Request.Context(), principal.AccessKey.ID)
 	if err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})

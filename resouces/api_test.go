@@ -115,7 +115,6 @@ func TestBrowserAdminRouteRequiresKey(t *testing.T) {
 		{http.MethodPost, "/v1/internal/browser/sessions/brw_test/close"},
 		{http.MethodPost, "/v1/internal/xbox/bots"},
 		{http.MethodGet, "/v1/internal/xbox/bots"},
-		{http.MethodPatch, "/v1/internal/xbox/bots/xbot_test/registration"},
 	} {
 		recorder := httptest.NewRecorder()
 		request := httptest.NewRequest(test.method, test.path, nil)

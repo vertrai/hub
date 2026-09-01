@@ -47,9 +47,6 @@ func (m *Manager) router() *gin.Engine {
 	admin.POST("/browser/sessions/:id/close", func(c *gin.Context) {
 		m.proxyResource("/v1/internal/browser/sessions/" + url.PathEscape(c.Param("id")) + "/close")(c)
 	})
-	admin.PATCH("/xbox/bots/:id/registration", func(c *gin.Context) {
-		m.proxyResource("/v1/internal/xbox/bots/" + url.PathEscape(c.Param("id")) + "/registration")(c)
-	})
 	for _, route := range []struct{ method, path string }{
 		{http.MethodPost, "/google/accounts"}, {http.MethodPost, "/google/accounts/batch"}, {http.MethodGet, "/google/accounts"},
 		{http.MethodGet, "/browser/sessions"},
@@ -182,7 +179,11 @@ func (m *Manager) proxyGatewayResource(path string) gin.HandlerFunc {
 			}
 			body = raw
 		}
-		raw, status, err := m.resources.do(c.Request.Context(), c.Request.Method, path, body, key)
+		requestPath := path
+		if c.Request.URL.RawQuery != "" {
+			requestPath += "?" + c.Request.URL.RawQuery
+		}
+		raw, status, err := m.resources.do(c.Request.Context(), c.Request.Method, requestPath, body, key)
 		if err != nil {
 			c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 			return

@@ -116,7 +116,7 @@ func (s *Service) AssignAccount(accessKeyID string) (schema.GoogleAccount, error
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
 		}
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).Where("status = ?", schema.StatusAvailable).Order("created_at").First(&account).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).Where("status = ? AND purpose = ?", schema.StatusAvailable, schema.GooglePurposeGeneral).Order("created_at").First(&account).Error; err != nil {
 			return err
 		}
 		now := time.Now()

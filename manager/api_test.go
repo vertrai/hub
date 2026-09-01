@@ -119,28 +119,6 @@ func TestAdminBrowserCloseProxyForwardsSessionID(t *testing.T) {
 	}
 }
 
-func TestAdminXBotRegistrationProxyForwardsBotID(t *testing.T) {
-	resources := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPatch || r.URL.Path != "/v1/internal/xbox/bots/xbot_123/registration" {
-			t.Errorf("request = %s %s", r.Method, r.URL.Path)
-		}
-		if r.Header.Get("X-Admin-API-Key") != "internal-secret" {
-			t.Errorf("internal key was not forwarded")
-		}
-		_, _ = io.WriteString(w, `{"bot":{"id":"xbot_123","status":"registered"}}`)
-	}))
-	defer resources.Close()
-	service, _ := New("test", Config{Resources: ResourcesConfig{BaseURL: resources.URL, AdminAPIKey: "internal-secret", Timeout: time.Second}}, nil)
-	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodPatch, "/v1/admin/xbox/bots/xbot_123/registration", strings.NewReader(`{"gamertag":"AgentBot"}`))
-	request.Header.Set("Content-Type", "application/json")
-	authenticateAdmin(service, request)
-	service.router().ServeHTTP(recorder, request)
-	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `"status":"registered"`) {
-		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
-	}
-}
-
 func TestGatewayProxyForwardsGatewayKey(t *testing.T) {
 	resources := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer gw_sk_test" {
@@ -176,6 +154,24 @@ func TestXBotGatewayProxyUsesSameGatewayKey(t *testing.T) {
 	request.Header.Set("Authorization", "Bearer gw_sk_test")
 	service.router().ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `"password":"secret"`) {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestGoogleUserProxyForwardsPurpose(t *testing.T) {
+	resources := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/google-user" || r.URL.Query().Get("purpose") != "xbox" {
+			t.Errorf("request URL = %s", r.URL.String())
+		}
+		_, _ = io.WriteString(w, `{"googleUser":{"purpose":"xbox"}}`)
+	}))
+	defer resources.Close()
+	service, _ := New("test", Config{Resources: ResourcesConfig{BaseURL: resources.URL, Timeout: time.Second}}, nil)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/v1/google-user?purpose=xbox", nil)
+	request.Header.Set("Authorization", "Bearer gw_sk_test")
+	service.router().ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `"purpose":"xbox"`) {
 		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
 	}
 }

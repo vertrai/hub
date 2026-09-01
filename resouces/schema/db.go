@@ -4,11 +4,13 @@ package schema
 import "time"
 
 const (
-	StatusActive       = "active"
-	StatusAvailable    = "available"
-	StatusAssigned     = "assigned"
-	StatusRevoked      = "revoked"
-	StatusReservedXBot = "reserved_xbot"
+	StatusActive         = "active"
+	StatusAvailable      = "available"
+	StatusAssigned       = "assigned"
+	StatusRevoked        = "revoked"
+	StatusReservedXBot   = "reserved_xbot"
+	GooglePurposeGeneral = "general"
+	GooglePurposeXbox    = "xbox"
 )
 
 type AccessKey struct {
@@ -50,10 +52,21 @@ type GoogleAccount struct {
 	Password            string     `gorm:"type:text;not null" json:"password"`
 	GoogleUserID        string     `gorm:"size:160;uniqueIndex" json:"googleUserId"`
 	Status              string     `gorm:"size:24;not null;index" json:"status"`
+	Purpose             string     `gorm:"size:32;not null;default:general;index" json:"purpose"`
 	AssignedAccessKeyID *string    `gorm:"size:80;uniqueIndex" json:"assignedAccessKeyId,omitempty"`
 	AssignedAt          *time.Time `json:"assignedAt,omitempty"`
 	CreatedAt           time.Time  `json:"createdAt"`
 	UpdatedAt           time.Time  `json:"updatedAt"`
+}
+
+// GoogleAccountAssignment lets one Gateway key hold one Google identity per
+// purpose (general, xbox, and future purpose values).
+type GoogleAccountAssignment struct {
+	ID              string    `gorm:"primaryKey;size:80" json:"id"`
+	GoogleAccountID string    `gorm:"size:80;not null;uniqueIndex" json:"googleAccountId"`
+	AccessKeyID     string    `gorm:"size:80;not null;uniqueIndex:idx_google_assignment_purpose" json:"accessKeyId"`
+	Purpose         string    `gorm:"size:32;not null;uniqueIndex:idx_google_assignment_purpose" json:"purpose"`
+	CreatedAt       time.Time `json:"createdAt"`
 }
 
 const (

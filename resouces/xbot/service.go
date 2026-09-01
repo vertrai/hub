@@ -16,67 +16,51 @@ type Service struct{ db *gorm.DB }
 
 func New(db *gorm.DB) *Service { return &Service{db: db} }
 
-func (s *Service) CreateFromGoogle(account schema.GoogleAccount) (schema.XBotAccount, error) {
-	row := schema.XBotAccount{
-		ID: "xbot_" + strings.ReplaceAll(uuid.NewString(), "-", ""), GoogleAccountID: account.ID,
-		Email: account.Email, Password: account.Password, Status: schema.XBotStatusPendingRegistration,
-	}
+// Designate changes an existing unassigned Google user from the general pool
+// into a purpose-specific Xbox user. Credentials remain stored only once.
+func (s *Service) Designate(googleAccountID string) (schema.GoogleAccount, error) {
+	var row schema.GoogleAccount
 	err := s.db.Transaction(func(tx *gorm.DB) error {
-		result := tx.Model(&schema.GoogleAccount{}).Where("id = ? AND status = ?", account.ID, schema.StatusAvailable).Update("status", schema.StatusReservedXBot)
-		if result.Error != nil {
-			return result.Error
-		}
-		if result.RowsAffected != 1 {
-			return fmt.Errorf("google account is no longer available")
-		}
-		return tx.Create(&row).Error
-	})
-	return row, err
-}
-
-func (s *Service) List() ([]schema.XBotAccount, error) {
-	var rows []schema.XBotAccount
-	return rows, s.db.Order("created_at desc").Find(&rows).Error
-}
-
-func (s *Service) MarkRegistered(id, gamertag string) (schema.XBotAccount, error) {
-	gamertag = strings.TrimSpace(gamertag)
-	var row schema.XBotAccount
-	err := s.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&row, "id = ?", id).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&row, "id = ?", strings.TrimSpace(googleAccountID)).Error; err != nil {
 			return err
 		}
-		if row.Status != schema.XBotStatusPendingRegistration && row.Status != schema.XBotStatusRegistered {
-			return fmt.Errorf("only a pending XBot can be registered")
+		if row.Status != schema.StatusAvailable || row.Purpose != schema.GooglePurposeGeneral {
+			return fmt.Errorf("google user is not available in the general pool")
 		}
-		now := time.Now()
-		if gamertag != "" {
-			row.Gamertag = &gamertag
-		}
-		row.Status, row.RegisteredAt = schema.XBotStatusRegistered, &now
+		row.Purpose = schema.GooglePurposeXbox
 		return tx.Save(&row).Error
 	})
 	return row, err
 }
 
-func (s *Service) Acquire(accessKeyID string) (schema.XBotAccount, error) {
-	var row schema.XBotAccount
+func (s *Service) List() ([]schema.GoogleAccount, error) {
+	var rows []schema.GoogleAccount
+	return rows, s.db.Where("purpose = ?", schema.GooglePurposeXbox).Order("created_at desc").Find(&rows).Error
+}
+
+func (s *Service) Acquire(accessKeyID string) (schema.GoogleAccount, error) {
+	var row schema.GoogleAccount
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&schema.AccessKey{}, "id = ?", accessKeyID).Error; err != nil {
 			return err
 		}
-		err := tx.Where("assigned_access_key_id = ?", accessKeyID).First(&row).Error
+		var assignment schema.GoogleAccountAssignment
+		err := tx.Where("access_key_id = ? AND purpose = ?", accessKeyID, schema.GooglePurposeXbox).First(&assignment).Error
 		if err == nil {
-			return nil
+			return tx.First(&row, "id = ?", assignment.GoogleAccountID).Error
 		}
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
 		}
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).Where("status = ?", schema.XBotStatusRegistered).Order("registered_at, created_at").First(&row).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).Where("purpose = ? AND status = ?", schema.GooglePurposeXbox, schema.StatusAvailable).Order("created_at").First(&row).Error; err != nil {
 			return err
 		}
-		now := time.Now()
-		row.Status, row.AssignedAccessKeyID, row.AssignedAt = schema.XBotStatusInUse, &accessKeyID, &now
+		assignment = schema.GoogleAccountAssignment{ID: "guas_" + strings.ReplaceAll(uuid.NewString(), "-", "")[:16], GoogleAccountID: row.ID, AccessKeyID: accessKeyID, Purpose: schema.GooglePurposeXbox, CreatedAt: time.Now()}
+		if err := tx.Create(&assignment).Error; err != nil {
+			return err
+		}
+		row.Status = schema.StatusAssigned
+		row.AssignedAt = &assignment.CreatedAt
 		return tx.Save(&row).Error
 	})
 	return row, err
