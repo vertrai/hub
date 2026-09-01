@@ -28,6 +28,9 @@ var googleHTML []byte
 //go:embed browser.html
 var browserHTML []byte
 
+//go:embed xbot.html
+var xbotHTML []byte
+
 //go:embed telegram.html
 var telegramHTML []byte
 
@@ -60,6 +63,7 @@ func RegisterRoutes(routes *gin.Engine, authentication gin.HandlerFunc) {
 	protected.GET("/admin/users", func(c *gin.Context) { c.Data(http.StatusOK, "text/html; charset=utf-8", usersHTML) })
 	protected.GET("/admin/google", func(c *gin.Context) { c.Data(http.StatusOK, "text/html; charset=utf-8", googleHTML) })
 	protected.GET("/admin/browser", func(c *gin.Context) { c.Data(http.StatusOK, "text/html; charset=utf-8", browserHTML) })
+	protected.GET("/admin/xbot", func(c *gin.Context) { c.Data(http.StatusOK, "text/html; charset=utf-8", xbotHTML) })
 	protected.GET("/admin/telegram", func(c *gin.Context) { c.Data(http.StatusOK, "text/html; charset=utf-8", telegramHTML) })
 	protected.GET("/admin/weixin", func(c *gin.Context) { c.Data(http.StatusOK, "text/html; charset=utf-8", weixinHTML) })
 	protected.GET("/admin/hymatrix", func(c *gin.Context) { c.Data(http.StatusOK, "text/html; charset=utf-8", hymatrixHTML) })

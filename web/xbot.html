@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Xbox Bot 资源池</title>
+    <link rel="stylesheet" href="/admin/assets/common.css" />
+    <style>
+      .summary{grid-template-columns:repeat(3,minmax(0,1fr))}.credential{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}.note{padding:14px 16px;border:1px solid #b9dce4;border-radius:12px;background:#f0fafc;color:#315d69;margin-bottom:18px}.actions{display:flex;gap:8px;flex-wrap:wrap}@media(max-width:760px){.summary{grid-template-columns:1fr}}
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="side"><div class="brand"><span>AGENT RUNTIME CONTROL</span><b>Agent Runtime Hub</b></div><nav class="nav"><small>MANAGER</small><a href="/admin">管理总览</a><a href="/admin/users">用户与密钥</a><a href="/admin/hymatrix">Hymatrix Pods</a><div class="divider"></div><small>RESOURCES</small><a href="/admin/google">Google 资源池</a><a href="/admin/browser">Browser 资源池</a><a class="active" href="/admin/xbot">Xbox Bot 资源池</a><a href="/admin/telegram">Telegram 资源池</a><a href="/admin/weixin">Weixin 扫码测试</a><a href="/admin/test">资源 API 测试</a></nav></aside>
+      <main class="content">
+        <header class="page-head"><div><div class="eyebrow">Managed Xbox identities</div><h1>Xbox Bot 资源池</h1><p>创建 Google 登录账号，人工完成 Xbox 注册，再提供给 Agent 排他使用。</p></div><button id="create">创建 Google/XBot 账号</button></header>
+        <div class="note"><b>操作流程：</b>创建后复制邮箱和密码，在远程浏览器中人工注册 Xbox；完成后点击“标记已注册”。一个已注册账号只会绑定给一个 Gateway API Key，同一 Key 可重复读取。</div>
+        <section class="grid summary">
+          <article class="card metric"><p>待注册</p><strong id="pending">—</strong></article>
+          <article class="card metric"><p>可分配</p><strong id="registered">—</strong></article>
+          <article class="card metric"><p>使用中</p><strong id="inUse">—</strong></article>
+          <article class="card wide"><div class="page-head"><div><h2>账号清单</h2><p>密码属于敏感凭证，仅用于管理员注册及已绑定 Agent 登录。</p></div><button id="refresh" class="secondary">刷新</button></div><div id="items" class="table-wrap"><div class="empty">尚未加载</div></div></article>
+        </section>
+      </main>
+    </div>
+    <script src="/admin/assets/common.js"></script>
+    <script>
+      async function copyCredential(email,password){await navigator.clipboard.writeText(`${email}\n${password}`)}
+      async function markRegistered(id){const gamertag=prompt("请输入已注册 Xbox 账号的 Gamertag（可留空）：","");if(gamertag===null)return;await adminRequest(`/v1/admin/xbox/bots/${encodeURIComponent(id)}/registration`,{method:"PATCH",body:JSON.stringify({gamertag:gamertag.trim()})});await loadXBots()}
+      async function loadXBots(){setBusy($("refresh"),true,"刷新中…");try{const data=await adminRequest("/v1/admin/xbox/bots"),items=data.items||[];$("pending").textContent=items.filter(x=>x.status==="pending_registration").length;$("registered").textContent=items.filter(x=>x.status==="registered").length;$("inUse").textContent=items.filter(x=>x.status==="in_use").length;$("items").innerHTML=`<table><thead><tr><th>Google 登录</th><th>密码</th><th>Gamertag</th><th>状态</th><th>绑定 API Key</th><th>操作</th></tr></thead><tbody>${items.map(x=>`<tr><td class="credential">${esc(x.email)}</td><td class="credential">${esc(x.password)}</td><td>${esc(x.gamertag||"—")}</td><td>${pill(x.status)}</td><td class="credential">${esc(x.assignedAccessKeyId||"—")}</td><td><div class="actions"><button class="secondary" data-copy="${esc(x.id)}">复制账号密码</button>${x.status==="pending_registration"?`<button data-register="${esc(x.id)}">标记已注册</button>`:""}</div></td></tr>`).join("")||'<tr><td colspan="6" class="empty">暂无 Xbox Bot 账号。</td></tr>'}</tbody></table>`;document.querySelectorAll("[data-copy]").forEach(button=>button.onclick=()=>{const item=items.find(x=>x.id===button.dataset.copy);copyCredential(item.email,item.password)});document.querySelectorAll("[data-register]").forEach(button=>button.onclick=()=>markRegistered(button.dataset.register))}catch(error){$("items").innerHTML=`<div class="empty error">${esc(error.message)}</div>`}finally{setBusy($("refresh"),false)}}
+      $("create").onclick=async()=>{if(!confirm("创建一个新的 Google 账号并加入 Xbox Bot 待注册池？"))return;setBusy($("create"),true,"创建中…");try{await adminRequest("/v1/admin/xbox/bots",{method:"POST",body:"{}"});await loadXBots()}catch(error){alert(error.message)}finally{setBusy($("create"),false)}};$("refresh").onclick=loadXBots;loadXBots();
+    </script>
+  </body>
+</html>

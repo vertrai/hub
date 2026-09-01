@@ -47,9 +47,13 @@ func (m *Manager) router() *gin.Engine {
 	admin.POST("/browser/sessions/:id/close", func(c *gin.Context) {
 		m.proxyResource("/v1/internal/browser/sessions/" + url.PathEscape(c.Param("id")) + "/close")(c)
 	})
+	admin.PATCH("/xbox/bots/:id/registration", func(c *gin.Context) {
+		m.proxyResource("/v1/internal/xbox/bots/" + url.PathEscape(c.Param("id")) + "/registration")(c)
+	})
 	for _, route := range []struct{ method, path string }{
 		{http.MethodPost, "/google/accounts"}, {http.MethodPost, "/google/accounts/batch"}, {http.MethodGet, "/google/accounts"},
 		{http.MethodGet, "/browser/sessions"},
+		{http.MethodPost, "/xbox/bots"}, {http.MethodGet, "/xbox/bots"},
 		{http.MethodPost, "/telegram/bots"}, {http.MethodGet, "/telegram/bots"}, {http.MethodPost, "/telegram/bots/create"},
 		{http.MethodPost, "/telegram/auth/init"}, {http.MethodPost, "/telegram/auth/verify"}, {http.MethodPost, "/telegram/auth/2fa"}, {http.MethodGet, "/telegram/auth/status"}, {http.MethodGet, "/telegram/auth/accounts"},
 	} {
@@ -73,6 +77,7 @@ func (m *Manager) router() *gin.Engine {
 		{http.MethodPost, "/google-user/test/gmail/send"}, {http.MethodPost, "/google-user/test/drive/folders"},
 		{http.MethodGet, "/browser"}, {http.MethodPost, "/browser/reset"}, {http.MethodPost, "/browser/close"},
 		{http.MethodGet, "/telegram-bot"},
+		{http.MethodGet, "/xbox/account"},
 	} {
 		r.Handle(route.method, "/v1"+route.path, m.proxyGatewayResource("/v1"+route.path))
 	}

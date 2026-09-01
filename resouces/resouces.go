@@ -11,6 +11,7 @@ import (
 	resourcebrowser "github.com/vertrai/hub/resouces/browser"
 	resourcegoogle "github.com/vertrai/hub/resouces/google"
 	resourcetelegram "github.com/vertrai/hub/resouces/telegram"
+	resourcexbot "github.com/vertrai/hub/resouces/xbot"
 )
 
 var log = common.NewLog("resouces")
@@ -44,6 +45,7 @@ type Resouces struct {
 	browserProvider resourcebrowser.BrowserProvider
 	google          *resourcegoogle.Service
 	telegram        *resourcetelegram.Service
+	xbot            *resourcexbot.Service
 	browserMu       sync.Mutex
 	browserLocks    map[string]*sync.Mutex
 }
@@ -75,6 +77,7 @@ func New(env string, config Config, wdb *Wdb) *Resouces {
 			BotName: config.TelegramBotName, BotUsernamePrefix: config.TelegramBotUsernamePrefix,
 			RequestTimeout: config.TelegramRequestTimeout,
 		})
+		g.xbot = resourcexbot.New(wdb.Db)
 		_, _ = g.scheduler.Every(1).Minute().Do(func() { g.telegram.EnsureBotTokens(context.Background()) })
 	}
 	return g

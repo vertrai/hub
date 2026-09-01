@@ -29,7 +29,7 @@ func NewWdb(dsn string) (*Wdb, error) {
 }
 
 func (w *Wdb) migrate() error {
-	return w.Db.AutoMigrate(&schema.AccessKey{}, &schema.Browser{}, &schema.GoogleAccount{}, &schema.TelegramBot{}, &schema.TelegramAccount{})
+	return w.Db.AutoMigrate(&schema.AccessKey{}, &schema.Browser{}, &schema.GoogleAccount{}, &schema.XBotAccount{}, &schema.TelegramBot{}, &schema.TelegramAccount{})
 }
 
 func (w *Wdb) Close() error {

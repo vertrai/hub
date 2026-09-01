@@ -6,6 +6,7 @@ require (
 	github.com/everFinance/goether v1.2.0
 	github.com/getsentry/sentry-go v0.44.1
 	github.com/gin-gonic/gin v1.12.0
+	github.com/glebarez/sqlite v1.11.0
 	github.com/go-co-op/gocron v1.37.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/gotd/td v0.143.0
@@ -35,6 +36,7 @@ require (
 	github.com/crate-crypto/go-kzg-4844 v1.1.0 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.3.0 // indirect
 	github.com/dlclark/regexp2 v1.11.5 // indirect
+	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/ethereum/c-kzg-4844 v1.0.3 // indirect
 	github.com/ethereum/go-ethereum v1.14.11 // indirect
 	github.com/ethereum/go-verkle v0.1.1-0.20240829091221-dffa7562dbe9 // indirect
@@ -43,6 +45,7 @@ require (
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
+	github.com/glebarez/go-sqlite v1.21.2 // indirect
 	github.com/go-faster/errors v0.7.1 // indirect
 	github.com/go-faster/jx v1.2.0 // indirect
 	github.com/go-faster/xor v1.0.0 // indirect
@@ -61,6 +64,7 @@ require (
 	github.com/mmcloughlin/addchain v0.4.0 // indirect
 	github.com/ogen-go/ogen v1.19.0 // indirect
 	github.com/panjf2000/ants/v2 v2.10.0 // indirect
+	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/segmentio/asm v1.2.1 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/supranational/blst v0.3.13 // indirect
@@ -82,6 +86,10 @@ require (
 	google.golang.org/grpc v1.80.0 // indirect
 	gopkg.in/h2non/gentleman.v2 v2.0.5 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
+	modernc.org/libc v1.22.5 // indirect
+	modernc.org/mathutil v1.5.0 // indirect
+	modernc.org/memory v1.5.0 // indirect
+	modernc.org/sqlite v1.23.1 // indirect
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
 

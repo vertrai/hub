@@ -15,7 +15,7 @@ func TestRegisterRoutes(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	RegisterRoutes(router, allowAll)
-	for _, path := range []string{"/admin", "/admin/users", "/admin/google", "/admin/browser", "/admin/telegram", "/admin/weixin", "/admin/hymatrix", "/admin/hymatrix/eval", "/admin/hymatrix/weixin-reset", "/admin/test"} {
+	for _, path := range []string{"/admin", "/admin/users", "/admin/google", "/admin/browser", "/admin/xbot", "/admin/telegram", "/admin/weixin", "/admin/hymatrix", "/admin/hymatrix/eval", "/admin/hymatrix/weixin-reset", "/admin/test"} {
 		recorder := httptest.NewRecorder()
 		request := httptest.NewRequest(http.MethodGet, path, nil)
 		router.ServeHTTP(recorder, request)
@@ -82,11 +82,11 @@ func TestAdminPagesShareRuntimeHubBrandAndNavigation(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	RegisterRoutes(router, allowAll)
-	for _, path := range []string{"/admin", "/admin/users", "/admin/google", "/admin/browser", "/admin/telegram", "/admin/weixin", "/admin/hymatrix", "/admin/test"} {
+	for _, path := range []string{"/admin", "/admin/users", "/admin/google", "/admin/browser", "/admin/xbot", "/admin/telegram", "/admin/weixin", "/admin/hymatrix", "/admin/test"} {
 		recorder := httptest.NewRecorder()
 		router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, path, nil))
 		body := recorder.Body.String()
-		for _, expected := range []string{"AGENT RUNTIME CONTROL", "Agent Runtime Hub", `href="/admin/browser"`, `href="/admin/weixin"`, `href="/admin/test"`} {
+		for _, expected := range []string{"AGENT RUNTIME CONTROL", "Agent Runtime Hub", `href="/admin/browser"`, `href="/admin/xbot"`, `href="/admin/weixin"`, `href="/admin/test"`} {
 			if !strings.Contains(body, expected) {
 				t.Errorf("GET %s is missing shared navigation content %q", path, expected)
 			}
@@ -130,6 +130,7 @@ func TestAdminPagesAutoLoadWithGoogleSession(t *testing.T) {
 		"/admin/users":    "load();",
 		"/admin/google":   "load();",
 		"/admin/browser":  "loadBrowserResources();",
+		"/admin/xbot":     "loadXBots();",
 		"/admin/telegram": "loadTelegramResources()",
 		"/admin/hymatrix": "load();",
 	} {
@@ -140,6 +141,19 @@ func TestAdminPagesAutoLoadWithGoogleSession(t *testing.T) {
 		router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, path, nil))
 		if !strings.Contains(recorder.Body.String(), expected) {
 			t.Errorf("GET %s does not auto-load data with an authenticated session", path)
+		}
+	}
+}
+
+func TestXBotPageSupportsRegistrationWorkflow(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	RegisterRoutes(router, allowAll)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/admin/xbot", nil))
+	for _, expected := range []string{"Xbox Bot 资源池", "创建 Google/XBot 账号", "标记已注册", "/v1/admin/xbox/bots", "复制账号密码", "pending_registration", "assignedAccessKeyId"} {
+		if !strings.Contains(recorder.Body.String(), expected) {
+			t.Errorf("Xbox Bot page is missing %q", expected)
 		}
 	}
 }

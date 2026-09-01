@@ -113,6 +113,9 @@ func TestBrowserAdminRouteRequiresKey(t *testing.T) {
 	for _, test := range []struct{ method, path string }{
 		{http.MethodGet, "/v1/internal/browser/sessions"},
 		{http.MethodPost, "/v1/internal/browser/sessions/brw_test/close"},
+		{http.MethodPost, "/v1/internal/xbox/bots"},
+		{http.MethodGet, "/v1/internal/xbox/bots"},
+		{http.MethodPatch, "/v1/internal/xbox/bots/xbot_test/registration"},
 	} {
 		recorder := httptest.NewRecorder()
 		request := httptest.NewRequest(test.method, test.path, nil)
@@ -135,6 +138,7 @@ func TestUserRoutesRequireGatewayAPIKey(t *testing.T) {
 		{method: http.MethodPost, path: "/v1/browser/reset"},
 		{method: http.MethodPost, path: "/v1/browser/close"},
 		{method: http.MethodGet, path: "/v1/telegram-bot"},
+		{method: http.MethodGet, path: "/v1/xbox/account"},
 	}
 	for _, test := range tests {
 		recorder := httptest.NewRecorder()
