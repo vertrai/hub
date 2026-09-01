@@ -189,12 +189,12 @@ http://<manager-host>:8086/admin/test
 ### 服务目录
 
 - `cmd/resouces` + `resouces`：内网资源服务。负责 Gateway API Key 鉴权与 Browser、Google、Telegram 资源生命周期，不挂载后台页面。
-- `cmd/manager` + `manager`：管理控制面。负责用户、API Key 创建、Resources 内网代理，以及通过带完整环境变量 Tags 的 Spawn 交易创建 Hymatrix Pod。
+- `cmd/manager` + `manager`：管理控制面。负责用户、API Key 创建、Resources 内网代理，以及分别构建和发送 Spawn、Start-Agent 交易。
 - `web`：只挂载到 Manager。页面按 Manager 管理功能与 Resources 资源池功能分区，浏览器不会接触 Resources 内部密钥和内网地址。
 - `hymatrix-module/start-hermes/skills`：四个 Gateway Skills 的唯一源码目录，同时供 Module 内嵌和外部安装器使用。
 - `agent-skills`：外部 Agent 的安装、配置脚本和可执行安装文档，不再维护 Skills 副本。
 
-Hymatrix 的 `Container-Env-*` Spawn Tags 不提供加密。LLM Key、Gateway Key 和 Bot Token 会对交易处理节点可见，因此只能在可信 Hymatrix 网络中使用。
+Manager 的 Spawn 与 Start-Agent 是两个独立操作。创建 Pod 的表单只通过 Spawn Tags 传递 `RUNTIME_TYPE`；Spawn 成功并取得 PID 后，管理员需要在 Pod 列表点击 Start，打开独立表单填写 LLM、Gateway 和消息渠道配置，再向该 PID 发送 `Action=Start-Agent`。敏感的 `Container-Env-*` 参数通过 SDK encrypted tags 发送，Node 必须提供有效的 `Encryption-Public-Key`。
 
 两个服务可以使用同一个 PostgreSQL 数据库。Manager 固定使用 `manager_users`、`manager_hymatrix_pods`；Resources 使用各自的资源表，服务之间不直接查询对方的数据表。
 

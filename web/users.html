@@ -239,7 +239,9 @@
           <div class="divider"></div>
           <small>RESOURCES</small><a href="/admin/google">Google 资源池</a
           ><a href="/admin/browser">Browser 资源池</a
+          ><a href="/admin/xbot">Xbox Bot 资源池</a
           ><a href="/admin/telegram">Telegram 资源池</a
+          ><a href="/admin/weixin">Weixin 扫码测试</a
           ><a href="/admin/test">资源 API 测试</a>
         </nav>
       </aside>
@@ -250,12 +252,6 @@
             <h1>用户与访问密钥</h1>
             <p>为新用户建档，或为已有用户签发一把独立的 Gateway API Key。</p>
           </div>
-          <label class="admin-key"
-            >管理员 API Key<input
-              id="adminKey"
-              type="password"
-              placeholder="用于验证本次管理操作"
-          /></label>
         </header>
         <section class="grid">
           <article class="card">
@@ -354,7 +350,7 @@
               <button id="refresh" class="secondary">刷新列表</button>
             </div>
             <div id="users" class="table-wrap">
-              <div class="empty">填写管理员 API Key 后加载记录。</div>
+              <div class="empty">正在加载用户记录…</div>
             </div>
           </article>
         </section>
@@ -424,10 +420,7 @@
         }
       }
       $("refresh").onclick = load;
-      document.addEventListener("manager-admin-key-change", () => {
-        if (currentManagerAdminKey()) load();
-      });
-      if (currentManagerAdminKey()) load();
+      load();
       $("form").onsubmit = async (e) => {
         e.preventDefault();
         setBusy($("create"), true, "签发中…");

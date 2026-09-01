@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Xbox Bot 资源池</title>
+    <link rel="stylesheet" href="/admin/assets/common.css" />
+    <style>
+      .summary{grid-template-columns:repeat(3,minmax(0,1fr))}.credential{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}.note{padding:14px 16px;border:1px solid #b9dce4;border-radius:12px;background:#f0fafc;color:#315d69;margin-bottom:18px}.actions{display:flex;gap:8px;flex-wrap:wrap}@media(max-width:760px){.summary{grid-template-columns:1fr}}
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="side"><div class="brand"><span>AGENT RUNTIME CONTROL</span><b>Agent Runtime Hub</b></div><nav class="nav"><small>MANAGER</small><a href="/admin">管理总览</a><a href="/admin/users">用户与密钥</a><a href="/admin/hymatrix">Hymatrix Pods</a><div class="divider"></div><small>RESOURCES</small><a href="/admin/google">Google 资源池</a><a href="/admin/browser">Browser 资源池</a><a class="active" href="/admin/xbot">Xbox Bot 资源池</a><a href="/admin/telegram">Telegram 资源池</a><a href="/admin/weixin">Weixin 扫码测试</a><a href="/admin/test">资源 API 测试</a></nav></aside>
+      <main class="content">
+        <header class="page-head"><div><div class="eyebrow">Purpose-specific Google users</div><h1>Xbox User 资源池</h1><p>把已经注册 Xbox 的现有 Google User 指定为 Xbox 用途。</p></div></header>
+        <div class="note"><b>模型说明：</b>账号仍是 Google User，只把空的 purpose 改为 xbox；不会复制用户名或密码。一个 API Key 只绑定一个 Google User，同一 Key 可重复读取。</div>
+        <section class="grid summary">
+          <article class="card"><h2>指定 Xbox 用途</h2><p>仅可选择尚未分配的普通 Google User。</p><label>Google User<select id="googleUser"></select></label><button id="designate">指定为 Xbox User</button></article>
+          <article class="card metric"><p>可分配</p><strong id="available">—</strong></article>
+          <article class="card metric"><p>使用中</p><strong id="inUse">—</strong></article>
+          <article class="card wide"><div class="page-head"><div><h2>Xbox 用途账号</h2><p>密码仍保存在原 Google User 记录中。</p></div><button id="refresh" class="secondary">刷新</button></div><div id="items" class="table-wrap"><div class="empty">尚未加载</div></div></article>
+        </section>
+      </main>
+    </div>
+    <script src="/admin/assets/common.js"></script>
+    <script>
+      async function copyCredential(email,password){await navigator.clipboard.writeText(`${email}\n${password}`)}
+      async function loadXBots(){setBusy($("refresh"),true,"刷新中…");try{const [bots,google]=await Promise.all([adminRequest("/v1/admin/xbox/bots"),adminRequest("/v1/admin/google/accounts")]),items=bots.items||[],candidates=(google.items||[]).filter(x=>x.status==="available"&&!x.purpose);$("googleUser").innerHTML=candidates.map(x=>`<option value="${esc(x.id)}">${esc(x.email)}</option>`).join("")||'<option value="">没有可用账号</option>';$("available").textContent=items.filter(x=>x.status==="available").length;$("inUse").textContent=items.filter(x=>x.status==="assigned").length;$("items").innerHTML=`<table><thead><tr><th>Google 登录</th><th>密码</th><th>Purpose</th><th>状态</th><th>操作</th></tr></thead><tbody>${items.map(x=>`<tr><td class="credential">${esc(x.email)}</td><td class="credential">${esc(x.password)}</td><td>${pill(x.purpose)}</td><td>${pill(x.status)}</td><td><button class="secondary" data-copy="${esc(x.id)}">复制账号密码</button></td></tr>`).join("")||'<tr><td colspan="5" class="empty">暂无 Xbox User。</td></tr>'}</tbody></table>`;document.querySelectorAll("[data-copy]").forEach(button=>button.onclick=()=>{const item=items.find(x=>x.id===button.dataset.copy);copyCredential(item.email,item.password)})}catch(error){$("items").innerHTML=`<div class="empty error">${esc(error.message)}</div>`}finally{setBusy($("refresh"),false)}}
+      $("designate").onclick=async()=>{const id=$("googleUser").value;if(!id)return;setBusy($("designate"),true,"保存中…");try{await adminRequest("/v1/admin/xbox/bots",{method:"POST",body:JSON.stringify({googleUserId:id})});await loadXBots()}catch(error){alert(error.message)}finally{setBusy($("designate"),false)}};$("refresh").onclick=loadXBots;loadXBots();
+    </script>
+  </body>
+</html>

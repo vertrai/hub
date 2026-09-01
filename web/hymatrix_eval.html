@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Hymatrix Eval 测试台</title>
+    <link rel="stylesheet" href="/admin/assets/common.css" />
+    <style>
+      .eval-main{width:min(980px,calc(100% - 48px));margin:0 auto;padding:42px 0 70px}.eval-head{margin-bottom:22px}.eval-head h1{margin:7px 0 9px;font-size:clamp(28px,4vw,42px);letter-spacing:-.035em}.eval-grid{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:20px;align-items:start}.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:22px;box-shadow:0 10px 32px rgba(33,55,92,.08)}form{display:grid;gap:18px}label{display:grid;gap:8px;color:#344460;font-size:14px;font-weight:700}select,textarea{width:100%;padding:12px 14px;border:1px solid #bac6d8;border-radius:9px;background:#fff;color:var(--ink);font:inherit}textarea{min-height:180px;resize:vertical;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}.ack{display:flex;align-items:flex-start;gap:10px;padding:13px;border:1px solid #e2b86f;border-radius:10px;background:#fff9ed;font-weight:600}.ack input{width:auto;margin-top:3px}.actions{display:flex;align-items:center;gap:12px}.warning{border-color:#e2b86f;background:#fffaf0}.warning h2{margin:0 0 10px;color:#875514;font-size:17px}.warning ul{margin:0;padding-left:19px;color:#66573f;line-height:1.65}.target{display:grid;grid-template-columns:auto 1fr;gap:7px 12px;margin:0}.target dt{color:var(--muted)}.target dd{margin:0;overflow-wrap:anywhere;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}.result{margin-top:20px}.result pre{margin:10px 0 0;padding:14px;border-radius:10px;background:#101b2d;color:#d7e5f7;white-space:pre-wrap;overflow-wrap:anywhere}.eyebrow{font:750 11px/1 ui-monospace,monospace;letter-spacing:.08em;color:var(--blue)}@media(max-width:760px){.eval-main{width:min(100% - 28px,980px);padding-top:28px}.eval-grid{grid-template-columns:1fr}}
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="side"><div class="brand"><span>AGENT RUNTIME CONTROL</span><b>Agent Runtime Hub</b></div><nav class="nav"><small>MANAGER</small><a href="/admin">管理总览</a><a href="/admin/users">用户与密钥</a><a href="/admin/hymatrix">Hymatrix Pods</a><a class="active" href="/admin/hymatrix/eval">Eval 测试台</a><div class="divider"></div><small>RESOURCES</small><a href="/admin/google">Google 资源池</a><a href="/admin/browser">Browser 资源池</a><a href="/admin/xbot">Xbox Bot 资源池</a><a href="/admin/telegram">Telegram 资源池</a><a href="/admin/weixin">Weixin 扫码测试</a><a href="/admin/test">资源 API 测试</a></nav></aside>
+      <main class="content eval-main">
+        <header class="eval-head"><div class="eyebrow">Hymx · Action=Eval</div><h1>Hermes Eval 测试台</h1><p>向运行中的 Hermes Process 发送容器内 shell 命令。</p></header>
+        <div class="eval-grid">
+          <section class="card">
+            <form id="evalForm">
+              <label>目标 Pod<select id="podId" required><option value="">正在加载运行中的 Pods…</option></select></label>
+              <dl id="target" class="target"><dt>PID</dt><dd>—</dd><dt>Node</dt><dd>—</dd></dl>
+              <label>Shell 命令<textarea id="command" maxlength="4096" required spellcheck="false" placeholder="例如：date > /tmp/eval-test.txt"></textarea><small>命令作为消息正文发送，并由容器中的 sh -lc 执行。</small></label>
+              <label class="ack"><input id="acknowledge" type="checkbox" required /><span>我理解该操作可以读取容器凭证、修改持久化工作区并启动后台进程。</span></label>
+              <div class="actions"><button id="runEval" type="submit">发送 Eval</button><span id="status" class="status" role="status"></span></div>
+            </form>
+            <div id="result" class="result" hidden><b>Manager 响应</b><pre id="output"></pre></div>
+          </section>
+          <aside class="card warning"><h2>执行边界</h2><ul><li>命令运行在目标 Docker 容器中，用户为 <code>hymx</code>。</li><li>Eval 是异步操作，成功仅表示 shell 已启动。</li><li>当前接口不返回命令输出，也不跟踪退出状态。</li><li>不要测试删除文件、关停进程或上传凭证等破坏性命令。</li></ul></aside>
+        </div>
+      </main>
+    </div>
+    <script src="/admin/assets/common.js"></script>
+    <script>
+      let pods=[];
+      function renderTarget(){const pod=pods.find(item=>item.id===$("podId").value);$("target").innerHTML=`<dt>PID</dt><dd>${esc(pod?.pid||"—")}</dd><dt>Node</dt><dd>${esc(pod?.nodeUrl||"—")}</dd>`;}
+      async function load(){try{const data=await adminRequest("/v1/admin/hymatrix/pods");pods=(data.items||[]).filter(pod=>pod.status==="running"&&String(pod.runtimeType).toLowerCase()==="hermes");$("podId").innerHTML='<option value="">请选择运行中的 Hermes Pod</option>'+pods.map(pod=>`<option value="${esc(pod.id)}">${esc(pod.name||pod.id)} · ${esc(pod.pid)}</option>`).join("");if(!pods.length)showStatus($("status"),"当前没有运行中的 Hermes Pod");}catch(error){showStatus($("status"),error.message);}}
+      $("podId").onchange=renderTarget;
+      $("evalForm").onsubmit=async event=>{event.preventDefault();const pod=pods.find(item=>item.id===$("podId").value),command=$("command").value;if(!pod||!$("acknowledge").checked)return;if(!window.confirm(`确认向 ${pod.name||pod.id} (${pod.pid}) 发送 Eval？\n\n${command}`))return;setBusy($("runEval"),true,"发送中…");$("result").hidden=true;try{const data=await adminRequest(`/v1/admin/hymatrix/pods/${encodeURIComponent(pod.id)}/eval`,{method:"POST",headers:{"X-Hymatrix-Eval-Confirmation":pod.id},body:JSON.stringify({command})});$("output").textContent=JSON.stringify(data,null,2);$("result").hidden=false;showStatus($("status"),"Hermes 已返回 Eval 接收结果；该状态不代表命令执行完成",true);}catch(error){showStatus($("status"),error.message);}finally{setBusy($("runEval"),false);}};
+      load();
+    </script>
+  </body>
+</html>

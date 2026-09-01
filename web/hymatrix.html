@@ -50,6 +50,90 @@
         grid-template-columns: minmax(0, 1fr) auto;
         gap: 10px;
       }
+      .channel-options {display:flex;gap:16px;flex-wrap:wrap;padding:12px;border:1px solid var(--line);border-radius:10px;background:#f8fafc}
+      .channel-options label {display:flex;align-items:center;gap:8px}
+      .channel-options input {width:auto}
+      #telegramBotField[hidden],
+      #weixinBotField[hidden] {
+        display: none;
+      }
+      .pod-dialog.weixin-auth-dialog {
+        width: min(420px, calc(100vw - 28px));
+        max-width: none;
+        max-height: calc(100vh - 40px);
+        inset: 0;
+        margin: auto;
+        overflow: hidden;
+        text-align: center;
+        border-radius: 18px;
+        box-shadow: 0 24px 64px rgba(18, 38, 63, 0.28);
+      }
+      .weixin-auth-dialog .pod-dialog-head {
+        align-items: center;
+        padding: 17px 19px 15px;
+        text-align: left;
+      }
+      .weixin-auth-dialog .pod-dialog-head h2 {
+        margin-top: 5px;
+        font-size: 20px;
+      }
+      .weixin-auth-dialog .pod-dialog-head button {
+        padding: 8px 11px;
+        font-size: 12px;
+      }
+      .weixin-auth-body {
+        display: grid;
+        justify-items: center;
+        gap: 13px;
+        padding: 18px 22px 20px;
+        overflow: auto;
+      }
+      .weixin-auth-copy {
+        font-size: 13px;
+      }
+      .weixin-qr-stage {
+        display: grid;
+        place-items: center;
+        width: min(276px, 100%);
+        aspect-ratio: 1;
+        padding: 10px;
+        border: 1px solid #d8e3ed;
+        border-radius: 16px;
+        background: #f6f9fc;
+        box-shadow: inset 0 0 0 5px #fff;
+      }
+      .weixin-qr-stage:has(img[hidden]) {
+        display: none;
+      }
+      .weixin-auth-dialog img {
+        display: block;
+        width: 100%;
+        max-width: 254px;
+        margin: 0;
+        padding: 0;
+        border-radius: 8px;
+        background: #fff;
+      }
+      #weixinAuthStatus {
+        min-height: 0;
+        padding: 7px 12px;
+        border-radius: 999px;
+        background: #edf8f4;
+        font-size: 12px;
+      }
+      .weixin-expiry {min-height:18px;color:var(--muted);font:650 11px/1.4 ui-monospace,monospace}
+      #weixinAuthStatus.error {
+        background: #fff2f0;
+      }
+      .weixin-auth-dialog .actions {
+        justify-content: center;
+        min-height: 36px;
+        margin: 0;
+      }
+      .weixin-auth-dialog .actions button {
+        padding: 8px 12px;
+        font-size: 12px;
+      }
       .bot-link {
         display: flex;
         align-items: center;
@@ -321,6 +405,9 @@
         padding: 6px 9px;
         font-size: 12px;
       }
+      .pod-actions {display:flex;align-items:center;justify-content:flex-end;gap:7px;white-space:nowrap}
+      .pod-action {min-width:58px;min-height:34px;padding:7px 11px !important}
+      .pod-action-start:before {content:"\25B6";margin-right:6px;font-size:9px}
       .pod-table table {
         min-width: 900px;
         table-layout: fixed;
@@ -332,20 +419,21 @@
         width: 8%;
       }
       .pod-table th:nth-child(3) {
-        width: 23%;
+        width: 19%;
       }
       .pod-table th:nth-child(4) {
         width: 12%;
       }
       .pod-table th:nth-child(5) {
-        width: 20%;
+        width: 17%;
       }
       .pod-table th:nth-child(6) {
-        width: 12%;
+        width: 11%;
       }
       .pod-table th:nth-child(7) {
         width: 7%;
       }
+      .pod-table th:nth-child(8) {width:13%}
       .pod-table td {
         overflow-wrap: anywhere;
         vertical-align: top;
@@ -439,6 +527,35 @@
         margin: 0;
         font-size: 13px;
       }
+      .spawn-key-check {min-height:18px;font-size:11px;font-weight:650}
+      .spawn-key-check.checking {color:var(--muted)}
+      .spawn-key-check.available {color:var(--green)}
+      .spawn-key-check.unavailable {color:var(--red)}
+      .spawn-key-check a {color:inherit}
+      .start-agent-dialog {width:min(960px,calc(100vw - 40px));height:min(760px,calc(100dvh - 40px));max-width:none;max-height:none;margin:auto;overflow:hidden;border-radius:20px}
+      .start-agent-dialog[open] {display:grid;grid-template-rows:auto minmax(0,1fr)}
+      .start-agent-dialog .pod-dialog-head {align-items:center;padding:18px 24px 16px;background:linear-gradient(135deg,#f6fbfe,#fff 62%)}
+      .start-agent-dialog .pod-dialog-head h2 {margin-top:4px;font-size:22px}
+      .dialog-close {width:38px;height:38px;padding:0;border-radius:50%}
+      .start-agent-form {display:grid;grid-template-rows:minmax(0,1fr) auto;min-height:0;overflow:hidden}
+      .start-agent-workspace {display:grid;grid-template-columns:minmax(0,1.4fr) minmax(280px,.6fr);min-height:0;overflow:hidden}
+      .start-agent-fields {display:grid;align-content:start;gap:16px;min-height:0;padding:20px 24px 24px;overflow:auto;scrollbar-gutter:stable}
+      .start-section {margin:0;padding:0;border:0}
+      .start-section + .start-section {padding-top:18px;border-top:1px solid var(--line)}
+      .start-section legend {width:100%;padding:0 0 12px;color:var(--ink);font-size:15px;font-weight:750}
+      .start-section legend span {display:block;margin-top:4px;color:var(--muted);font-size:11px;font-weight:550}
+      .start-agent-fields input,.start-agent-fields select {min-height:44px}
+      .start-agent-fields .channel-options {align-items:center;padding:11px 14px}
+      .start-agent-fields .channel-options input {width:18px;height:18px;min-height:0;accent-color:var(--blue)}
+      .start-preview {display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;border-left:1px solid var(--line);background:#f7f9fc}
+      .start-preview-head {padding:17px 18px 13px;border-bottom:1px solid var(--line)}
+      .start-preview-head h3 {margin-bottom:4px}
+      .start-preview .tx-body {min-height:0;max-height:none;padding-bottom:12px;overflow:auto}
+      .start-preview .tx-row {padding:8px 16px 9px}
+      .start-preview .tx-section {padding:10px 16px 7px}
+      .start-agent-footer {display:flex;align-items:center;justify-content:space-between;gap:18px;min-height:68px;padding:12px 24px;border-top:1px solid var(--line);background:#fff;box-shadow:0 -8px 24px rgba(28,52,84,.05)}
+      .start-agent-footer .actions {margin-left:auto}
+      .start-agent-footer button[type="submit"] {min-width:168px}
       @media (max-width: 1160px) {
         .pod-compose {
           grid-template-columns: 1fr;
@@ -449,6 +566,14 @@
         .tx-body {
           max-height: 560px;
         }
+      }
+      @media (max-width: 760px) {
+        .start-agent-dialog {width:calc(100vw - 16px);height:calc(100dvh - 16px)}
+        .start-agent-workspace {grid-template-columns:1fr;overflow:auto}
+        .start-agent-fields {overflow:visible;padding:18px}
+        .start-preview {border-left:0;border-top:1px solid var(--line);min-height:320px}
+        .start-agent-footer {align-items:stretch;flex-direction:column;padding:14px 18px}
+        .start-agent-footer .actions,.start-agent-footer button[type="submit"] {width:100%;margin:0}
       }
       @media (max-width: 520px) {
         .form-grid,
@@ -507,10 +632,14 @@
           <small>MANAGER</small><a href="/admin">管理总览</a
           ><a href="/admin/users">用户与密钥</a
           ><a class="active" href="/admin/hymatrix">Hymatrix Pods</a>
+          <a href="/admin/hymatrix/eval">Eval 测试台</a>
+          <a href="/admin/hymatrix/weixin-reset">重置微信连接</a>
           <div class="divider"></div>
           <small>RESOURCES</small><a href="/admin/google">Google 资源池</a
           ><a href="/admin/browser">Browser 资源池</a
+          ><a href="/admin/xbot">Xbox Bot 资源池</a
           ><a href="/admin/telegram">Telegram 资源池</a
+          ><a href="/admin/weixin">Weixin 扫码测试</a
           ><a href="/admin/test">资源 API 测试</a>
         </nav>
       </aside>
@@ -520,16 +649,10 @@
             <div class="eyebrow">Manager · deployment control</div>
             <h1>Hymatrix Pods</h1>
             <p>
-              一次 Spawn 交易注入完整运行环境，Module 中的 start-hermes
-              会随容器自启动。
+              先发送仅包含 Runtime 信息的 Spawn 交易；确认成功并取得 PID
+              后，再发送 Start-Agent，敏感配置使用 Node 公钥加密。
             </p>
           </div>
-          <label class="admin-key"
-            >Manager Admin API Key<input
-              id="adminKey"
-              type="password"
-              placeholder="所有管理页面共用"
-          /></label>
         </header>
         <section class="pod-layout">
           <div class="pod-compose">
@@ -550,59 +673,13 @@
                     <label
                       >选择用户<select id="userId" required>
                         <option value="">加载用户中…</option>
-                      </select></label
-                    ><label
-                      >可用 Gateway API Key<select
-                        id="accessKeyId"
-                        required
-                        disabled
-                      >
-                        <option value="">请先选择用户</option></select
-                      ><small id="noAccessKey" class="no-access-key" hidden
-                        >当前用户没有可用 Key，<a
-                          id="createAccessKeyLink"
-                          href="/admin/users"
-                          >前往创建 Gateway API Key</a
-                        ></small
-                      ></label
+                      </select><small id="spawnKeyCheck" class="spawn-key-check">选择后将检查可用 API Key</small></label
                     ><label>Pod 名称<input id="name" required /></label
                     ><label
                       >Runtime Type<input
                         id="runtimeType"
                         required
                         value="hermes" /></label
-                    ><label class="wide"
-                      >Hub Gateway URL<input
-                        id="gatewayUrl"
-                        type="url"
-                        required
-                      /><small
-                        >默认使用当前管理页面域名；部署到其他 Gateway
-                        时可以修改。</small
-                      ></label
-                    ><label class="wide"
-                      >Telegram Bot Token 🔒<span class="inline-control"
-                        ><input
-                          id="botToken"
-                          type="password"
-                          required
-                          placeholder="可手动填写，或使用所选 Key 从 Resources 领取"
-                        /><button
-                          id="acquireBot"
-                          type="button"
-                          class="secondary"
-                        >
-                          从 Resources 领取
-                        </button></span
-                      ><small id="telegramBotLink" class="bot-link" hidden
-                        ><span>Bot 链接</span
-                        ><a
-                          id="telegramBotAnchor"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        ></a></small
-                      ><small id="telegramAcquireHint" class="bot-link error" hidden></small
-                    ></label>
                   </div>
                 </fieldset>
                 <fieldset>
@@ -619,6 +696,14 @@
                         Node.Acc-Id。</small
                       ></label
                     ><label
+                      >Admin API URL<input
+                        id="adminUrl"
+                        type="url"
+                        value="http://52.220.233.136:9091"
+                      /><small
+                        >Manager 从服务端调用；主机与 Node 相同，Admin 端口为 9091。</small
+                      ></label
+                    ><label
                       >Scheduler（自动获取）<input
                         id="scheduler"
                         required
@@ -628,29 +713,12 @@
                       >Module<input
                         id="module"
                         required
-                        value="G0hsaVf5gKq25JoIsEGzPfGIcKNKZofgX3i2gDivQjU"
+                        value="93rtls97Wz8mEC20Rdk-SMs7p3HC3Nnv_b2jjJ7RY80"
                     /></label>
                     <details class="advanced-config wide">
-                      <summary>高级配置 · 自动生成的运行密钥</summary>
+                      <summary>高级配置 · 交易签名私钥</summary>
                       <div class="advanced-config-body">
                         <label
-                          >Hermes API Server Key 🔒<span class="inline-control"
-                            ><input
-                              id="hermesGatewayToken"
-                              type="password"
-                              required
-                            /><button
-                              id="generateHermesKey"
-                              type="button"
-                              class="secondary"
-                            >
-                              重新生成
-                            </button></span
-                          ><small
-                            >同时用于 API_SERVER_KEY 与
-                            HERMES_GATEWAY_TOKEN，默认随机生成。</small
-                          ></label
-                        ><label
                           >Private Key 🔒<textarea
                             id="privateKey"
                             required
@@ -664,34 +732,6 @@
                     </details>
                   </div>
                 </fieldset>
-                <fieldset>
-                  <legend>03 · LLM 运行配置</legend>
-                  <div class="form-grid">
-                    <label
-                      >Provider<input
-                        id="llmProvider"
-                        required
-                        value="custom" /></label
-                    ><label
-                      >Model<input
-                        id="llmModel"
-                        required
-                        value="deepseek-chat" /></label
-                    ><label class="wide"
-                      >Base URL<input
-                        id="llmBaseUrl"
-                        type="url"
-                        required
-                        value="https://api.deepseek.com" /></label
-                    ><label class="wide"
-                      >LLM API Key 🔒<input
-                        id="llmApiKey"
-                        type="password"
-                        required
-                        placeholder="sk-..."
-                    /></label>
-                  </div>
-                </fieldset>
                 <div id="spawnRequirements" class="missing-list"></div>
                 <div class="actions">
                   <button id="spawn" type="submit" disabled>
@@ -703,8 +743,8 @@
             <aside class="card transaction-preview" aria-live="polite">
               <div class="tx-head">
                 <div>
-                  <div class="eyebrow">Hymx · Spawn envelope</div>
-                  <h2>待发送交易</h2>
+                  <div class="eyebrow">Hymx · Spawn</div>
+                  <h2>待发送 Spawn 交易</h2>
                 </div>
                 <span id="txState" class="tx-state">待补全</span>
               </div>
@@ -725,8 +765,8 @@
                   ><button id="copyTx" type="button">复制预览</button>
                 </div>
                 <p class="tx-note">
-                  按 SDK 实际标签顺序预览。时间戳由 Manager / SDK
-                  在发送瞬间生成；Gateway Secret 由所选 Access Key 在后端解析。
+                  此处只构建 Spawn 交易。成功后请在 Pod 列表点击 Start，
+                  再填写并发送独立的 Start-Agent 交易。
                 </p>
               </div>
             </aside>
@@ -752,7 +792,7 @@
               </div>
             </div>
             <div id="pods">
-              <div class="empty">输入 Manager Admin API Key 后刷新。</div>
+              <div class="empty">正在加载 Pods…</div>
             </div>
             <div id="podPagination" class="pod-pagination" hidden></div>
           </article>
@@ -768,6 +808,37 @@
         <button id="closePodDetail" type="button" class="secondary">关闭</button>
       </div>
       <div id="podDetailBody" class="pod-detail-body"></div>
+    </dialog>
+    <dialog id="startAgentDialog" class="pod-dialog start-agent-dialog">
+      <div class="pod-dialog-head"><div><span class="eyebrow">START-AGENT · RUNTIME CONFIG</span><h2 id="startAgentTitle">启动 Agent</h2></div><button id="closeStartAgent" type="button" class="secondary dialog-close" aria-label="关闭">×</button></div>
+      <form id="startAgentForm" class="start-agent-form">
+        <input id="startPodId" type="hidden" />
+        <div class="start-agent-workspace"><div class="start-agent-fields">
+        <fieldset class="start-section"><legend>连接与消息渠道<span>选择 Agent 使用的 Gateway 身份与对话入口</span></legend><div class="form-grid">
+          <label class="wide">可用 Gateway API Key<select id="accessKeyId" required disabled><option value="">加载中…</option></select><small id="noAccessKey" class="no-access-key" hidden>当前用户没有可用 Key，<a id="createAccessKeyLink" href="/admin/users">前往创建</a></small></label>
+          <label class="wide">Hub Gateway URL<input id="gatewayUrl" type="url" required /></label>
+          <div id="channelOptions" class="wide channel-options" tabindex="-1"><strong>消息渠道</strong><label><input id="enableTelegram" type="checkbox"> Telegram</label><label><input id="enableWeixin" type="checkbox"> Weixin</label></div>
+          <label id="telegramBotField" class="wide" hidden>Telegram Bot Token 🔒<span class="inline-control"><input id="botToken" type="password" placeholder="可手动填写，或从 Resources 领取" /><button id="acquireBot" type="button" class="secondary">从 Resources 领取</button></span><small id="telegramBotLink" class="bot-link" hidden><span>Bot 链接</span><a id="telegramBotAnchor" target="_blank" rel="noopener noreferrer"></a></small><small id="telegramAcquireHint" class="bot-link error" hidden></small></label>
+          <label id="weixinBotField" class="wide" hidden>Weixin Bot<span class="inline-control"><select id="weixinBotId"><option value="">加载中…</option></select><button id="authorizeWeixin" type="button" class="secondary">扫码授权</button></span></label>
+          <label class="wide">Hermes API Server Key 🔒<span class="inline-control"><input id="hermesGatewayToken" type="password" required /><button id="generateHermesKey" type="button" class="secondary">重新生成</button></span></label>
+        </div></fieldset>
+        <fieldset class="start-section"><legend>模型配置<span>设置 Hermes Agent 的推理服务</span></legend><div class="form-grid">
+          <label>Provider<input id="llmProvider" required value="custom" /></label><label>Model<input id="llmModel" required value="deepseek-chat" /></label>
+          <label class="wide">Base URL<input id="llmBaseUrl" type="url" required value="https://api.deepseek.com" /></label><label class="wide">LLM API Key 🔒<input id="llmApiKey" type="password" required placeholder="sk-..." /></label>
+        </div></fieldset></div>
+        <aside class="start-preview"><div class="start-preview-head"><h3>启动摘要</h3><p>敏感值已隐藏，发送前请确认目标与运行参数。</p></div><div id="startAgentPreview" class="tx-body"></div></aside></div>
+        <div class="start-agent-footer"><span id="startAgentStatus" class="status"></span><div class="actions"><button id="cancelStartAgent" type="button" class="secondary">取消</button><button id="sendStartAgent" type="submit">启动 Agent</button></div></div>
+      </form>
+    </dialog>
+    <dialog id="weixinAuthDialog" class="pod-dialog weixin-auth-dialog">
+      <div class="pod-dialog-head"><div><span class="eyebrow">WEIXIN · ILINK BOT</span><h2>微信扫码授权</h2></div><button id="closeWeixinAuth" type="button" class="secondary">关闭</button></div>
+      <div class="weixin-auth-body">
+        <p class="weixin-auth-copy">打开微信扫一扫，并在手机端确认授权</p>
+        <div class="weixin-qr-stage"><img id="weixinAuthQR" alt="微信扫码授权二维码" hidden></div>
+        <p id="weixinAuthStatus" class="status">正在申请二维码…</p>
+        <p id="weixinAuthExpiry" class="weixin-expiry"></p>
+        <div class="actions"><button id="retryWeixinAuth" type="button" class="secondary" hidden>重新申请</button></div>
+      </div>
     </dialog>
     <script src="/admin/assets/common.js"></script>
     <script>
@@ -787,13 +858,24 @@
       $("name").value = randomPodName();
       $("gatewayUrl").value = window.location.origin;
       $("hermesGatewayToken").value = randomHex();
-      initAdminKey();
       let revealTxSecrets = false;
       let spawnSubmitting = false;
       let telegramLinkRequest = 0;
+      let accessKeysRequest = 0;
+      let spawnUserKeyState = "idle";
+      let weixinBotsRequest = 0;
+      let weixinAuthAttempt = "";
+      let weixinAuthTimer = 0;
+      let weixinExpiryTimer = 0;
+      let weixinAuthGeneration = 0;
       let allPods = [];
       let podPage = 1;
       const podPageSize = 20;
+      function podActionButtons(p) {
+        const start = p.status === "spawned" ? `<button type="button" class="pod-action pod-action-start" data-pod-start="${esc(p.id)}">启动</button>` : "";
+        const remove = !["spawning", "starting"].includes(p.status) ? `<button type="button" class="secondary pod-action" data-pod-delete="${esc(p.id)}">删除</button>` : "";
+        return `${start}${remove}<button type="button" class="secondary pod-action" data-pod-detail="${esc(p.id)}">详情</button>`;
+      }
       function showTelegramBotLink(link, username) {
         const container = $("telegramBotLink");
         const anchor = $("telegramBotAnchor");
@@ -842,60 +924,7 @@
         )[0];
       }
       function transactionPreview() {
-        const env = [
-          ["Container-Env-RUNTIME_TYPE", $("runtimeType").value.trim(), false],
-          [
-            "Container-Env-HERMES_AGENT_LLM_PROVIDER",
-            $("llmProvider").value.trim() || "custom",
-            false,
-          ],
-          [
-            "Container-Env-HERMES_AGENT_LLM_MODEL",
-            $("llmModel").value.trim(),
-            false,
-          ],
-          [
-            "Container-Env-HERMES_AGENT_LLM_BASE_URL",
-            $("llmBaseUrl").value.trim(),
-            false,
-          ],
-          [
-            "Container-Env-HERMES_AGENT_LLM_API_KEY",
-            $("llmApiKey").value.trim(),
-            true,
-          ],
-          [
-            "Container-Env-HUB_GATEWAY_URL",
-            $("gatewayUrl").value.trim(),
-            false,
-          ],
-          [
-            "Container-Env-HUB_GATEWAY_API_KEY",
-            selectedAccessKey()
-              ? `<${selectedAccessKey()} secret>`
-              : "<selected Access Key secret>",
-            true,
-          ],
-          ["Container-Env-API_SERVER_ENABLED", "true", false],
-          [
-            "Container-Env-API_SERVER_KEY",
-            $("hermesGatewayToken").value.trim(),
-            true,
-          ],
-          [
-            "Container-Env-HERMES_GATEWAY_TOKEN",
-            $("hermesGatewayToken").value.trim(),
-            true,
-          ],
-        ];
-        const bot = $("botToken").value.trim();
-        if (bot)
-          env.push([
-            "Container-Env-HERMES_AGENT_TELEGRAM_BOT_TOKEN",
-            bot,
-            true,
-          ]);
-        const tags = [
+        const spawnTags = [
           ["SDK-Timestamp", "<UnixNano generated by SDK>", false],
           ["Data-Protocol", "hymx", false],
           ["Variant", "v0.1.0", false],
@@ -903,42 +932,27 @@
           ["Module", $("module").value.trim(), false],
           ["Scheduler", $("scheduler").value.trim(), false],
           ["Hub-Spawn-Timestamp", "<UnixNano generated by Manager>", false],
-          ...env,
+          ["Container-Env-RUNTIME_TYPE", $("runtimeType").value.trim(), false],
         ];
         return {
-          target: "",
-          data: "<UnixNano generated by SDK>",
           nodeUrl: $("nodeUrl").value.trim(),
-          tags,
+          transaction: {title: "Spawn transaction", target: "", data: "<UnixNano generated by SDK>", tags: spawnTags},
         };
       }
       function txPreviewRow([key, value, sensitive]) {
         return `<div class="tx-row${sensitive ? " sensitive" : ""}${!value ? " pending" : ""}"><span class="tx-key">${esc(key)}</span><span class="tx-value">${esc(sensitive && !revealTxSecrets ? masked(value) : value || "<not set>")}</span></div>`;
       }
       function isSpawnFormComplete() {
-        const requiredIDs = Object.keys(spawnFieldLabels);
-        return (
-          currentManagerAdminKey() !== "" &&
-          requiredIDs.every((id) => $(id).value.trim() !== "") &&
-          $("form").checkValidity()
-        );
+        return spawnUserKeyState === "available" && Object.keys(spawnFieldLabels).every((id) => $(id).value.trim() !== "") && $("form").checkValidity();
       }
       const spawnFieldLabels = {
         userId: "用户",
-        accessKeyId: "Gateway API Key",
         name: "Pod 名称",
         runtimeType: "Runtime Type",
-        gatewayUrl: "Hub Gateway URL",
-        botToken: "Telegram Bot Token",
         nodeUrl: "Node URL",
         scheduler: "Scheduler",
         module: "Module",
-        hermesGatewayToken: "Hermes API Key",
         privateKey: "Private Key",
-        llmProvider: "LLM Provider",
-        llmModel: "LLM Model",
-        llmBaseUrl: "LLM Base URL",
-        llmApiKey: "LLM API Key",
       };
       function renderMissingFields() {
         const missing = Object.entries(spawnFieldLabels).filter(
@@ -954,12 +968,14 @@
         const container = $("spawnRequirements");
         container.classList.toggle(
           "complete",
-          missing.length === 0 && currentManagerAdminKey() !== "",
+          missing.length === 0 && spawnUserKeyState === "available",
         );
-        if (currentManagerAdminKey() === "")
-          missing.unshift(["adminKey", "Manager Admin API Key"]);
-        if (!missing.length) {
+        if (!missing.length && spawnUserKeyState === "available") {
           container.textContent = "✓ 配置完整，可以发送 Spawn 交易";
+          return;
+        }
+        if (!missing.length) {
+          container.textContent = spawnUserKeyState === "checking" ? "正在检查该用户的可用 API Key…" : "所选用户需要至少一把可用 API Key 才能创建 Pod";
           return;
         }
         container.innerHTML = `<strong>还需完成 ${missing.length} 项：</strong>${missing.map(([id, label]) => `<button type="button" data-missing-field="${id}">${label}</button>`).join("")}`;
@@ -975,27 +991,20 @@
         $("txSigner").textContent = $("privateKey").value.trim()
           ? "ECC 私钥 · 已配置"
           : "ECC 私钥 · 未配置";
-        const envelope = [
-          ["Target", tx.target || "<empty>", false],
-          ["Data", tx.data, false],
-        ];
-        const protocol = tx.tags.filter(
-          ([key]) => !key.startsWith("Container-Env-"),
-        );
-        const environment = tx.tags.filter(([key]) =>
-          key.startsWith("Container-Env-"),
-        );
-        $("txBody").innerHTML =
-          `<div class="tx-section">Envelope</div>${envelope.map(txPreviewRow).join("")}<div class="tx-section">Protocol tags · ${protocol.length}</div>${protocol.map(txPreviewRow).join("")}<div class="tx-section">Container environment · ${environment.length}</div>${environment.map(txPreviewRow).join("")}`;
+        const transaction = tx.transaction;
+        const envelope = [["Target", "<empty>", false], ["Data", transaction.data, false]];
+        const environment = transaction.tags.filter(([key]) => key.includes("Container-Env-"));
+        const protocol = transaction.tags.filter(([key]) => !key.includes("Container-Env-"));
+        $("txBody").innerHTML = `<div class="tx-section">Envelope</div>${envelope.map(txPreviewRow).join("")}<div class="tx-section">Protocol tags · ${protocol.length}</div>${protocol.map(txPreviewRow).join("")}<div class="tx-section">Container environment · ${environment.length}</div>${environment.map(txPreviewRow).join("")}`;
       }
       function serializableTx() {
         const tx = transactionPreview();
         return {
-          Target: tx.target,
-          Data: tx.data,
-          Tags: tx.tags.map(([name, value, sensitive]) => ({
-            name,
-            value: sensitive && !revealTxSecrets ? masked(value) : value,
+          Target: tx.transaction.target,
+          Data: tx.transaction.data,
+          Tags: tx.transaction.tags.map(([name, value, sensitive]) => ({
+              name,
+              value: sensitive && !revealTxSecrets ? masked(value) : value,
           })),
         };
       }
@@ -1049,7 +1058,7 @@
           $("userId").disabled = false;
           if (previous && d.items.some((u) => u.id === previous)) {
             $("userId").value = previous;
-            await loadKeys();
+            await Promise.all([loadKeys(), loadWeixinBots()]);
           }
           showStatus($("status"), "用户列表已更新", true);
         } catch (e) {
@@ -1059,6 +1068,8 @@
       }
       async function loadKeys() {
         const userId = $("userId").value;
+        const requestID = ++accessKeysRequest;
+        const keyCheck = $("spawnKeyCheck");
         $("createAccessKeyLink").href = userId
           ? `/admin/users?userId=${encodeURIComponent(userId)}`
           : "/admin/users";
@@ -1066,14 +1077,22 @@
         $("accessKeyId").disabled = true;
         $("accessKeyId").innerHTML = '<option value="">加载中…</option>';
         if (!userId) {
+          spawnUserKeyState = "idle";
+          keyCheck.className = "spawn-key-check";
+          keyCheck.textContent = "选择后将检查可用 API Key";
           $("accessKeyId").innerHTML = '<option value="">请先选择用户</option>';
           renderTxPreview();
           return;
         }
+        spawnUserKeyState = "checking";
+        keyCheck.className = "spawn-key-check checking";
+        keyCheck.textContent = "正在检查可用 API Key…";
+        renderTxPreview();
         try {
           const d = await adminRequest(
             `/v1/admin/users/${encodeURIComponent(userId)}/access-keys/available`,
           );
+          if (requestID !== accessKeysRequest || $("userId").value !== userId) return;
           $("accessKeyId").innerHTML =
             '<option value="">请选择未使用的 API Key</option>' +
             d.items
@@ -1084,14 +1103,171 @@
               .join("");
           $("accessKeyId").disabled = d.items.length === 0;
           $("noAccessKey").hidden = d.items.length !== 0;
+          spawnUserKeyState = d.items.length ? "available" : "unavailable";
+          keyCheck.className = `spawn-key-check ${spawnUserKeyState}`;
+          keyCheck.innerHTML = d.items.length
+            ? `✓ 有 ${d.items.length} 把可用 API Key`
+            : `没有可用 API Key，<a href="/admin/users?userId=${encodeURIComponent(userId)}">前往创建</a>`;
           if (!d.items.length)
             $("accessKeyId").innerHTML =
               '<option value="">该用户没有未使用的 API Key</option>';
         } catch (e) {
+          if (requestID !== accessKeysRequest || $("userId").value !== userId) return;
           $("accessKeyId").innerHTML =
             `<option value="">${esc(e.message)}</option>`;
+          spawnUserKeyState = "unavailable";
+          keyCheck.className = "spawn-key-check unavailable";
+          keyCheck.textContent = "API Key 检查失败，请重试";
         }
         renderTxPreview();
+      }
+      async function loadWeixinBots() {
+        const userId = $("userId").value;
+        const requestID = ++weixinBotsRequest;
+        $("weixinBotId").disabled = true;
+        $("weixinBotId").innerHTML = '<option value="">加载中…</option>';
+        if (!userId) {
+          $("weixinBotId").innerHTML = '<option value="">请先选择用户</option>';
+          return false;
+        }
+        try {
+          const result = await adminRequest(`/v1/admin/weixin/bots?userId=${encodeURIComponent(userId)}`);
+          if (requestID !== weixinBotsRequest || $("userId").value !== userId) return false;
+          const available = result.items.filter((bot) => bot.status === "available");
+          $("weixinBotId").innerHTML = '<option value="">请选择可用 Weixin Bot</option>' + available.map((bot) => `<option value="${esc(bot.id)}" data-account="${esc(bot.accountId)}" data-base-url="${esc(bot.baseUrl)}" data-allowed-user="${esc(bot.allowedUserId)}">${esc(bot.accountId)} · ${esc(bot.authorizedAt)}</option>`).join("");
+          $("weixinBotId").disabled = available.length === 0;
+          if (!available.length) $("weixinBotId").innerHTML = '<option value="">该用户没有可用 Weixin Bot</option>';
+        } catch (error) {
+          if (requestID !== weixinBotsRequest || $("userId").value !== userId) return false;
+          $("weixinBotId").innerHTML = `<option value="">${esc(error.message)}</option>`;
+          renderTxPreview();
+          return false;
+        }
+        renderTxPreview();
+        return true;
+      }
+      async function discardWeixinAuthorization() {
+        clearTimeout(weixinAuthTimer);
+        clearInterval(weixinExpiryTimer);
+        const attempt = weixinAuthAttempt;
+        weixinAuthAttempt = "";
+        if (attempt) await adminRequest(`/v1/admin/weixin/onboarding/${encodeURIComponent(attempt)}`, {method: "DELETE"}).catch(() => {});
+      }
+      function startWeixinExpiryCountdown(expiresAt) {
+        clearInterval(weixinExpiryTimer);
+        const deadline = new Date(expiresAt).getTime();
+        const render = () => {
+          const remaining = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+          $("weixinAuthExpiry").textContent = remaining > 0 ? `预计剩余 ${remaining} 秒 · 实际状态以微信为准` : "预计有效期已到，正在确认二维码状态…";
+          if (!remaining) clearInterval(weixinExpiryTimer);
+        };
+        if (!Number.isFinite(deadline)) {
+          $("weixinAuthExpiry").textContent = "有效期以微信返回状态为准";
+          return;
+        }
+        render();
+        weixinExpiryTimer = setInterval(render, 1000);
+      }
+      async function startWeixinAuthorization() {
+        const userId = $("userId").value;
+        if (!userId) {
+          showStatus($("status"), "请先选择用户，再进行微信扫码授权");
+          return;
+        }
+        ++weixinAuthGeneration;
+        const generation = weixinAuthGeneration;
+        await discardWeixinAuthorization();
+        $("weixinAuthQR").hidden = true;
+        $("weixinAuthExpiry").textContent = "";
+        $("retryWeixinAuth").hidden = true;
+        showStatus($("weixinAuthStatus"), "正在申请二维码…", true);
+        if (!$("weixinAuthDialog").open) $("weixinAuthDialog").showModal();
+        setBusy($("authorizeWeixin"), true, "申请中…");
+        try {
+          const result = await adminRequest("/v1/admin/weixin/onboarding", {method: "POST", body: JSON.stringify({userId})});
+          if (generation !== weixinAuthGeneration || $("userId").value !== userId) {
+            await adminRequest(`/v1/admin/weixin/onboarding/${encodeURIComponent(result.attemptId)}`, {method: "DELETE"}).catch(() => {});
+            return;
+          }
+          weixinAuthAttempt = result.attemptId;
+          $("weixinAuthQR").src = result.qrImage;
+          $("weixinAuthQR").hidden = false;
+          startWeixinExpiryCountdown(result.expiresAt);
+          showStatus($("weixinAuthStatus"), "等待扫码确认…", true);
+          pollWeixinAuthorization(generation, userId, Math.max(2, Number(result.intervalSeconds) || 2));
+        } catch (error) {
+          showStatus($("weixinAuthStatus"), error.message);
+          $("retryWeixinAuth").hidden = false;
+        } finally {
+          if (generation === weixinAuthGeneration) setBusy($("authorizeWeixin"), false);
+        }
+      }
+      function showExpiredWeixinAuthorization() {
+        clearInterval(weixinExpiryTimer);
+        weixinAuthAttempt = "";
+        $("weixinAuthQR").hidden = true;
+        $("weixinAuthExpiry").textContent = "二维码已失效";
+        $("retryWeixinAuth").hidden = false;
+        showStatus($("weixinAuthStatus"), "二维码已过期，请点击重新申请。", false);
+      }
+      async function pollWeixinAuthorization(generation, userId, seconds) {
+        if (!weixinAuthAttempt || generation !== weixinAuthGeneration) return;
+        try {
+          const state = await adminRequest(`/v1/admin/weixin/onboarding/${encodeURIComponent(weixinAuthAttempt)}`);
+          if (generation !== weixinAuthGeneration || $("userId").value !== userId) return;
+          if (state.state === "connected") {
+            const attempt = weixinAuthAttempt;
+            weixinAuthAttempt = "";
+            clearInterval(weixinExpiryTimer);
+            $("weixinAuthExpiry").textContent = "授权已确认";
+            const loaded = await loadWeixinBots();
+            if (generation !== weixinAuthGeneration || $("userId").value !== userId) return;
+            $("weixinBotId").value = state.botId;
+            renderTxPreview();
+            $("weixinAuthQR").hidden = true;
+            if (!loaded || !state.botId || $("weixinBotId").value !== state.botId) {
+              showStatus($("weixinAuthStatus"), "授权已完成，但 Bot 列表加载失败。请关闭弹窗后重新选择。", false);
+              showStatus($("status"), "Weixin Bot 已授权，但未能自动选择");
+              await adminRequest(`/v1/admin/weixin/onboarding/${encodeURIComponent(attempt)}`, {method: "DELETE"}).catch(() => {});
+              return;
+            }
+            showStatus($("weixinAuthStatus"), "授权成功，正在返回启动配置…", true);
+            showStatus($("status"), "Weixin Bot 授权成功并已选择", true);
+            await adminRequest(`/v1/admin/weixin/onboarding/${encodeURIComponent(attempt)}`, {method: "DELETE"}).catch(() => {});
+            weixinAuthTimer = setTimeout(() => {
+              if (generation !== weixinAuthGeneration || !$("weixinAuthDialog").open) return;
+              $("weixinAuthDialog").close();
+              $("weixinBotId").focus();
+            }, 650);
+            return;
+          }
+          if (state.state === "expired") {
+            showExpiredWeixinAuthorization();
+            return;
+          }
+          showStatus($("weixinAuthStatus"), state.state === "scanned" ? "已扫码，请在微信中确认…" : "等待扫码确认…", true);
+        } catch (error) {
+          if (error.status === 404 || error.status === 410) {
+            showExpiredWeixinAuthorization();
+            return;
+          }
+          if (error.status === 409) {
+            await discardWeixinAuthorization();
+            $("weixinAuthQR").hidden = true;
+            $("retryWeixinAuth").hidden = false;
+            showStatus($("weixinAuthStatus"), error.message);
+            return;
+          }
+          showStatus($("weixinAuthStatus"), `查询失败，正在重试：${error.message}`);
+        }
+        if (weixinAuthAttempt && generation === weixinAuthGeneration && $("userId").value === userId)
+          weixinAuthTimer = setTimeout(() => pollWeixinAuthorization(generation, userId, seconds), seconds * 1000);
+      }
+      async function closeWeixinAuthorization() {
+        ++weixinAuthGeneration;
+        await discardWeixinAuthorization();
+        $("weixinAuthDialog").close();
+        setBusy($("authorizeWeixin"), false);
       }
       async function resolveScheduler() {
         const nodeUrl = $("nodeUrl").value.trim();
@@ -1107,7 +1283,18 @@
         renderTxPreview();
         return scheduler;
       }
+      function syncAdminUrlFromNode() {
+        try {
+          const node = new URL($("nodeUrl").value.trim());
+          node.port = "9091";
+          node.pathname = "/";
+          node.search = "";
+          node.hash = "";
+          $("adminUrl").value = node.toString().replace(/\/$/, "");
+        } catch (_) {}
+      }
       $("nodeUrl").addEventListener("change", async () => {
+        syncAdminUrlFromNode();
         try {
           await resolveScheduler();
           showStatus($("status"), "Scheduler 已从 Node /info 自动获取", true);
@@ -1116,7 +1303,25 @@
         }
       });
       $("botToken").addEventListener("change", resolveTelegramBotLink);
-      $("userId").onchange = loadKeys;
+      function syncChannelFields() {
+        $("telegramBotField").hidden = !$("enableTelegram").checked;
+        $("weixinBotField").hidden = !$("enableWeixin").checked;
+        if (!$("enableWeixin").checked && $("weixinAuthDialog").open) closeWeixinAuthorization();
+        renderTxPreview();
+      }
+      $("enableWeixin").onchange = syncChannelFields;
+      $("enableTelegram").onchange = syncChannelFields;
+      syncChannelFields();
+      $("userId").onchange = async () => {
+        ++weixinAuthGeneration;
+        await discardWeixinAuthorization();
+        if ($("weixinAuthDialog").open) $("weixinAuthDialog").close();
+        await Promise.all([loadKeys(), loadWeixinBots()]);
+      };
+      $("authorizeWeixin").onclick = () => startWeixinAuthorization();
+      $("retryWeixinAuth").onclick = () => startWeixinAuthorization();
+      $("closeWeixinAuth").onclick = closeWeixinAuthorization;
+      $("weixinAuthDialog").addEventListener("cancel", (event) => {event.preventDefault();closeWeixinAuthorization()});
       $("acquireBot").onclick = async () => {
         const id = $("accessKeyId").value;
         const acquireHint = $("telegramAcquireHint");
@@ -1149,17 +1354,9 @@
           setBusy($("acquireBot"), false);
         }
       };
-      document.addEventListener("manager-admin-key-change", () => {
-        loadFormOptions();
-        load();
-        renderTxPreview();
-        resolveScheduler().catch((error) =>
-          showStatus($("status"), error.message),
-        );
-      });
       loadFormOptions();
       resolveScheduler().catch(() => {});
-      if (currentManagerAdminKey()) load();
+      load();
       renderTxPreview();
       function formatPodTime(value) {
         if (!value) return "—";
@@ -1173,7 +1370,7 @@
         if (filter === "all") return allPods;
         if (filter === "active")
           return allPods.filter((pod) =>
-            ["spawning", "spawned", "running"].includes(pod.status),
+            ["spawning", "spawned", "starting", "running"].includes(pod.status),
           );
         return allPods.filter((pod) => pod.status === filter);
       }
@@ -1203,13 +1400,13 @@
         const rows = visible
           .map(
             (p) =>
-              `<tr><td><b>${esc(p.name)}</b><br><small>${esc(p.userId)}</small></td><td>${esc(p.runtimeType)}</td><td>${esc(p.module)}<br><small>${esc(p.scheduler)}</small></td><td>${esc(p.llmProvider || "—")} / ${esc(p.llmModel || "—")}</td><td>${esc(p.pid || "—")}</td><td>${esc(formatPodTime(p.createdAt))}</td><td>${pill(p.status)}</td><td><button type="button" class="secondary" data-pod-detail="${esc(p.id)}">详情</button></td></tr>`,
+              `<tr><td><b>${esc(p.name)}</b><br><small>${esc(p.userId)}</small></td><td>${esc(p.runtimeType)}</td><td>${esc(p.module)}<br><small>${esc(p.scheduler)}</small></td><td>${esc(p.llmProvider || "—")} / ${esc(p.llmModel || "—")}</td><td>${esc(p.pid || "—")}</td><td>${esc(formatPodTime(p.createdAt))}</td><td>${pill(p.status)}</td><td><div class="pod-actions">${podActionButtons(p)}</div></td></tr>`,
           )
           .join("");
         const cards = visible
           .map(
             (p) =>
-              `<article class="pod-card"><div class="pod-card-head"><div><b>${esc(p.name)}</b><br><small>${esc(p.userId)}</small></div>${pill(p.status)}</div><dl><dt>Runtime</dt><dd>${esc(p.runtimeType)}</dd><dt>LLM</dt><dd>${esc(p.llmProvider || "—")} / ${esc(p.llmModel || "—")}</dd><dt>PID</dt><dd>${esc(p.pid || "—")}</dd><dt>创建时间</dt><dd>${esc(formatPodTime(p.createdAt))}</dd></dl><div class="pod-card-foot"><small>${p.error ? "有失败信息可查看" : "交易配置已隐藏敏感值"}</small><button type="button" class="secondary" data-pod-detail="${esc(p.id)}">查看详情</button></div></article>`,
+              `<article class="pod-card"><div class="pod-card-head"><div><b>${esc(p.name)}</b><br><small>${esc(p.userId)}</small></div>${pill(p.status)}</div><dl><dt>Runtime</dt><dd>${esc(p.runtimeType)}</dd><dt>LLM</dt><dd>${esc(p.llmProvider || "—")} / ${esc(p.llmModel || "—")}</dd><dt>PID</dt><dd>${esc(p.pid || "—")}</dd><dt>创建时间</dt><dd>${esc(formatPodTime(p.createdAt))}</dd></dl><div class="pod-card-foot"><small>${p.error ? "有失败信息可查看" : "交易配置已隐藏敏感值"}</small><div class="pod-actions">${podActionButtons(p)}</div></div></article>`,
           )
           .join("");
         $("pods").innerHTML = `<div class="table-wrap pod-table"><table><thead><tr><th>Pod / 用户</th><th>Runtime</th><th>Module / Scheduler</th><th>LLM</th><th>PID</th><th>创建时间</th><th>状态</th><th></th></tr></thead><tbody>${rows}</tbody></table></div><div class="pod-cards">${cards}</div>`;
@@ -1219,8 +1416,42 @@
         const pod = allPods.find((item) => item.id === id);
         if (!pod) return;
         $("podDetailTitle").textContent = pod.name || "Pod 详情";
-        $("podDetailBody").innerHTML = `${pod.error ? `<div class="pod-error"><b>失败原因</b><br>${esc(pod.error)}</div>` : ""}<dl class="pod-detail-grid"><dt>状态</dt><dd>${pill(pod.status)}</dd><dt>用户</dt><dd>${esc(pod.userId)}</dd><dt>Runtime</dt><dd>${esc(pod.runtimeType)}</dd><dt>创建时间</dt><dd>${esc(formatPodTime(pod.createdAt))}</dd><dt>Node URL</dt><dd>${esc(pod.nodeUrl)}</dd><dt>Module</dt><dd>${esc(pod.module)}</dd><dt>Scheduler</dt><dd>${esc(pod.scheduler)}</dd><dt>PID</dt><dd>${esc(pod.pid || "—")}</dd><dt>LLM</dt><dd>${esc(pod.llmProvider || "—")} / ${esc(pod.llmModel || "—")}</dd><dt>LLM Base URL</dt><dd>${esc(pod.llmBaseUrl || "—")}</dd><dt>Access Key</dt><dd>${esc(pod.accessKeyId || "—")}</dd></dl>`;
+        $("podDetailBody").innerHTML = `${pod.error ? `<div class="pod-error"><b>失败原因</b><br>${esc(pod.error)}</div>` : ""}<dl class="pod-detail-grid"><dt>状态</dt><dd>${pill(pod.status)}</dd><dt>用户</dt><dd>${esc(pod.userId)}</dd><dt>Runtime</dt><dd>${esc(pod.runtimeType)}</dd><dt>创建时间</dt><dd>${esc(formatPodTime(pod.createdAt))}</dd><dt>Node URL</dt><dd>${esc(pod.nodeUrl)}</dd><dt>Admin API URL</dt><dd>${esc(pod.adminUrl || "未配置")}</dd><dt>Module</dt><dd>${esc(pod.module)}</dd><dt>Scheduler</dt><dd>${esc(pod.scheduler)}</dd><dt>PID</dt><dd>${esc(pod.pid || "—")}</dd><dt>LLM</dt><dd>${esc(pod.llmProvider || "—")} / ${esc(pod.llmModel || "—")}</dd><dt>LLM Base URL</dt><dd>${esc(pod.llmBaseUrl || "—")}</dd><dt>Access Key</dt><dd>${esc(pod.accessKeyId || "—")}</dd></dl>`;
         $("podDetail").showModal();
+      }
+      async function openStartAgent(id) {
+        const pod = allPods.find((item) => item.id === id && item.status === "spawned");
+        if (!pod) return;
+        $("startPodId").value = pod.id;
+        $("startAgentTitle").textContent = `启动 ${pod.name || pod.id}`;
+        $("userId").value = pod.userId;
+        $("gatewayUrl").value = window.location.origin;
+        $("hermesGatewayToken").value = randomHex();
+        $("botToken").value = "";
+        $("enableTelegram").checked = false;
+        $("enableWeixin").checked = false;
+        syncChannelFields();
+        renderStartAgentPreview(pod);
+        $("startAgentDialog").showModal();
+        await Promise.all([loadKeys(), loadWeixinBots()]);
+      }
+      function renderStartAgentPreview(pod) {
+        if (!pod) pod = allPods.find((item) => item.id === $("startPodId").value);
+        if (!pod) return;
+        const tags = [
+          ["Action", "Start-Agent", false],
+          ["Container-Env-HERMES_AGENT_LLM_PROVIDER", $("llmProvider").value.trim(), false],
+          ["Container-Env-HERMES_AGENT_LLM_MODEL", $("llmModel").value.trim(), false],
+          ["Container-Env-HERMES_AGENT_LLM_BASE_URL", $("llmBaseUrl").value.trim(), false],
+          ["Encrypted-Container-Env-HERMES_AGENT_LLM_API_KEY", $("llmApiKey").value.trim(), true],
+          ["Container-Env-HUB_GATEWAY_URL", $("gatewayUrl").value.trim(), false],
+          ["Encrypted-Container-Env-HUB_GATEWAY_API_KEY", selectedAccessKey() || "<selected key>", true],
+          ["Encrypted-Container-Env-API_SERVER_KEY", $("hermesGatewayToken").value.trim(), true],
+          ["Encrypted-Container-Env-HERMES_GATEWAY_TOKEN", $("hermesGatewayToken").value.trim(), true],
+        ];
+        if ($("enableTelegram").checked) tags.push(["Encrypted-Container-Env-HERMES_AGENT_TELEGRAM_BOT_TOKEN", $("botToken").value.trim() || "<Resources bot>", true]);
+        if ($("enableWeixin").checked) tags.push(["Encrypted-Container-Env-HERMES_AGENT_WEIXIN_TOKEN", "<stored Weixin credentials>", true]);
+        $("startAgentPreview").innerHTML = `<div class="tx-section">Target · ${esc(pod.pid)}</div>${tags.map(txPreviewRow).join("")}`;
       }
       async function load() {
         try {
@@ -1240,9 +1471,31 @@
         renderPods();
       };
       $("pods").onclick = (event) => {
+        const deleteButton = event.target.closest("[data-pod-delete]");
+        if (deleteButton) {
+          deletePod(deleteButton.dataset.podDelete, deleteButton);
+          return;
+        }
+        const startButton = event.target.closest("[data-pod-start]");
+        if (startButton) {
+          openStartAgent(startButton.dataset.podStart);
+          return;
+        }
         const button = event.target.closest("[data-pod-detail]");
         if (button) openPodDetail(button.dataset.podDetail);
       };
+      async function deletePod(id, button) {
+        const pod = allPods.find((item) => item.id === id);
+        if (!pod || !window.confirm(`确认停止并删除 ${pod.name || pod.id}？\n\nManager 将先通过 Hymx Admin API 停止 VM；成功后才删除数据库记录、清理关联的小程序任务，并释放微信 Bot 和 Gateway API Key 绑定。`)) return;
+        setBusy(button, true, "删除中…");
+        try {
+          await adminRequest(`/v1/admin/hymatrix/pods/${encodeURIComponent(id)}`, {method: "DELETE"});
+          await Promise.all([load(), loadKeys(), loadWeixinBots()]);
+        } catch (error) {
+          window.alert(`删除失败：${error.message}`);
+          setBusy(button, false);
+        }
+      }
       $("podPagination").onclick = (event) => {
         const button = event.target.closest("[data-pod-page]");
         if (!button || button.disabled) return;
@@ -1250,6 +1503,37 @@
         renderPods();
       };
       $("closePodDetail").onclick = () => $("podDetail").close();
+      $("closeStartAgent").onclick = () => $("startAgentDialog").close();
+      $("cancelStartAgent").onclick = () => $("startAgentDialog").close();
+      $("startAgentForm").addEventListener("input", () => renderStartAgentPreview());
+      $("startAgentForm").addEventListener("change", () => renderStartAgentPreview());
+      $("startAgentForm").onsubmit = async (event) => {
+        event.preventDefault();
+        if (!$("startAgentForm").checkValidity()) return;
+        if (!$("enableTelegram").checked && !$("enableWeixin").checked) {
+          showStatus($("startAgentStatus"), "请至少选择一个消息渠道");
+          return;
+        }
+        setBusy($("sendStartAgent"), true, "发送中…");
+        try {
+          await adminRequest(`/v1/admin/hymatrix/pods/${encodeURIComponent($("startPodId").value)}/start`, {method: "POST", body: JSON.stringify({
+            accessKeyId: $("accessKeyId").value,
+            enableTelegram: $("enableTelegram").checked,
+            botToken: $("enableTelegram").checked ? $("botToken").value.trim() : "",
+            weixinBotId: $("enableWeixin").checked ? $("weixinBotId").value : "",
+            gatewayUrl: $("gatewayUrl").value.trim(),
+            hermesGatewayToken: $("hermesGatewayToken").value.trim(),
+            llm: {apiKey: $("llmApiKey").value.trim(), baseUrl: $("llmBaseUrl").value.trim(), model: $("llmModel").value.trim(), provider: $("llmProvider").value.trim()},
+          })});
+          showStatus($("startAgentStatus"), "Start-Agent 交易已完成", true);
+          $("startAgentDialog").close();
+          await Promise.all([load(), loadKeys()]);
+        } catch (error) {
+          showStatus($("startAgentStatus"), error.message);
+        } finally {
+          setBusy($("sendStartAgent"), false);
+        }
+      };
       $("podDetail").onclick = (event) => {
         if (event.target === $("podDetail")) $("podDetail").close();
       };
@@ -1264,37 +1548,26 @@
         setBusy($("spawn"), true, "校验 Node…");
         try {
           await resolveScheduler();
-          setBusy($("spawn"), true, "发送交易中…");
+          setBusy($("spawn"), true, "发送 Spawn 交易…");
           await adminRequest("/v1/admin/hymatrix/pods", {
             method: "POST",
             body: JSON.stringify({
               userId: $("userId").value.trim(),
               name: $("name").value.trim(),
               runtimeType: $("runtimeType").value.trim(),
-              accessKeyId: $("accessKeyId").value,
-              botToken: $("botToken").value.trim(),
-              gatewayUrl: $("gatewayUrl").value.trim(),
-              hermesGatewayToken: $("hermesGatewayToken").value.trim(),
               nodeUrl: $("nodeUrl").value.trim(),
+              adminUrl: $("adminUrl").value.trim(),
               privateKey: $("privateKey").value.trim(),
               module: $("module").value.trim(),
-              llm: {
-                apiKey: $("llmApiKey").value.trim(),
-                baseUrl: $("llmBaseUrl").value.trim(),
-                model: $("llmModel").value.trim(),
-                provider: $("llmProvider").value.trim(),
-              },
             }),
           });
           showStatus(
             $("status"),
-            "Spawn 交易完成，start-hermes 正在容器中自启动",
+            "Spawn 交易已完成，请在 Pod 列表点击 Start",
             true,
           );
-          $("hermesGatewayToken").value = randomHex();
           $("name").value = randomPodName();
           renderTxPreview();
-          await loadKeys();
           load();
         } catch (x) {
           showStatus($("status"), x.message);

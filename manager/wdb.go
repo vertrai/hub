@@ -23,7 +23,7 @@ func NewWdb(dsn string) (*Wdb, error) {
 	if err := w.renameLegacyTables(); err != nil {
 		return nil, err
 	}
-	if err := w.Db.AutoMigrate(&schema.User{}, &schema.AccessKey{}, &schema.HymatrixPod{}); err != nil {
+	if err := w.Db.AutoMigrate(&schema.User{}, &schema.AccessKey{}, &schema.HymatrixPod{}, &schema.WeixinBot{}, &schema.MiniProgramAgentTask{}); err != nil {
 		return nil, fmt.Errorf("migrate postgres: %w", err)
 	}
 	// AccessKeyID identifies both current and historical Pod attempts. The

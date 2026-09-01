@@ -32,11 +32,40 @@ func WriteHermesGatewayEnv(home string, config GatewayConfig) error {
 		"HUB_GATEWAY_API_KEY":          config.APIKey,
 		"AGENT_ACCESS_GATEWAY_URL":     config.URL,
 		"AGENT_ACCESS_GATEWAY_API_KEY": config.APIKey,
+		"TELEGRAM_BOT_TOKEN":           "",
+		"TELEGRAM_ALLOW_ALL_USERS":     "",
+		"GATEWAY_ALLOW_ALL_USERS":      "",
+		"WEIXIN_ACCOUNT_ID":            "",
+		"WEIXIN_TOKEN":                 "",
+		"WEIXIN_BASE_URL":              "",
+		"WEIXIN_DM_POLICY":             "",
+		"WEIXIN_ALLOWED_USERS":         "",
 	}
 	if token := envFirst("HERMES_AGENT_TELEGRAM_BOT_TOKEN", "TELEGRAM_BOT_TOKEN", "Bot_Token"); token != "" {
 		values["TELEGRAM_BOT_TOKEN"] = token
 		values["TELEGRAM_ALLOW_ALL_USERS"] = "true"
 		values["GATEWAY_ALLOW_ALL_USERS"] = "true"
+	}
+	weixin := map[string]string{
+		"WEIXIN_ACCOUNT_ID":    envFirst("HERMES_AGENT_WEIXIN_ACCOUNT_ID", "WEIXIN_ACCOUNT_ID"),
+		"WEIXIN_TOKEN":         envFirst("HERMES_AGENT_WEIXIN_TOKEN", "WEIXIN_TOKEN"),
+		"WEIXIN_BASE_URL":      envFirst("HERMES_AGENT_WEIXIN_BASE_URL", "WEIXIN_BASE_URL"),
+		"WEIXIN_ALLOWED_USERS": envFirst("HERMES_AGENT_WEIXIN_ALLOWED_USERS", "WEIXIN_ALLOWED_USERS"),
+	}
+	configured := 0
+	for _, value := range weixin {
+		if value != "" {
+			configured++
+		}
+	}
+	if configured != 0 && configured != len(weixin) {
+		return fmt.Errorf("Weixin channel requires account ID, token, base URL and allowed users as a complete set")
+	}
+	if configured == len(weixin) {
+		for key, value := range weixin {
+			values[key] = value
+		}
+		values["WEIXIN_DM_POLICY"] = "allowlist"
 	}
 	return writeHermesEnv(home, values)
 }
