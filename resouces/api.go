@@ -62,7 +62,6 @@ func (g *Resouces) router() *gin.Engine {
 	user.POST("/browser/reset", g.requireResourceScope(resourceScopeBrowser), g.resetBrowser)
 	user.POST("/browser/close", g.requireResourceScope(resourceScopeBrowser), g.closeBrowser)
 	user.GET("/telegram-bot", g.requireResourceScope(resourceScopeTelegram), g.getTelegramBot)
-	user.GET("/xbox/account", g.getXBotAccount)
 	return r
 }
 
@@ -93,23 +92,6 @@ func (g *Resouces) listXBots(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"items": rows})
-}
-
-func (g *Resouces) getXBotAccount(c *gin.Context) {
-	principal := mustGatewayPrincipal(c)
-	bot, err := g.xbot.Acquire(principal.AccessKey.ID)
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		c.JSON(http.StatusConflict, gin.H{"error": "no registered XBot account is available"})
-		return
-	}
-	if err != nil {
-		g.internalError(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"account": gin.H{
-		"id": bot.ID, "username": bot.Email, "email": bot.Email, "password": bot.Password,
-		"purpose": bot.Purpose, "status": bot.Status,
-	}})
 }
 
 func (g *Resouces) listBrowserSessions(c *gin.Context) {
@@ -371,26 +353,19 @@ func (g *Resouces) listGoogleAccounts(c *gin.Context) {
 func (g *Resouces) getGoogleUser(c *gin.Context) {
 	principal := mustGatewayPrincipal(c)
 	purpose := strings.ToLower(strings.TrimSpace(c.Query("purpose")))
-	if purpose == schema.GooglePurposeXbox {
-		account, err := g.xbot.Acquire(principal.AccessKey.ID)
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			c.JSON(http.StatusConflict, gin.H{"error": "no Xbox Google user is available"})
-			return
-		}
-		if err != nil {
-			g.internalError(c, err)
-			return
-		}
-		c.JSON(http.StatusOK, gin.H{"googleUser": account})
-		return
-	}
-	if purpose != "" && purpose != schema.GooglePurposeGeneral {
+	if purpose == schema.GooglePurposeGeneral {
+		purpose = ""
+	} else if purpose != "" && purpose != schema.GooglePurposeXbox {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported Google user purpose"})
 		return
 	}
-	account, err := g.google.AcquireAccount(c.Request.Context(), principal.AccessKey.ID)
+	account, err := g.google.AcquireAccount(c.Request.Context(), principal.AccessKey.ID, purpose)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		c.JSON(http.StatusConflict, gin.H{"error": "no Google user is available for the requested purpose"})
+		return
+	}
 	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(200, gin.H{"googleUser": account})

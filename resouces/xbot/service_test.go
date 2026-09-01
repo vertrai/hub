@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/glebarez/sqlite"
+	resourcegoogle "github.com/vertrai/hub/resouces/google"
 	"github.com/vertrai/hub/resouces/schema"
 	"gorm.io/gorm"
 )
@@ -15,7 +16,7 @@ func testDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.AutoMigrate(&schema.AccessKey{}, &schema.GoogleAccount{}, &schema.GoogleAccountAssignment{}); err != nil {
+	if err := db.AutoMigrate(&schema.AccessKey{}, &schema.GoogleAccount{}); err != nil {
 		t.Fatal(err)
 	}
 	return db
@@ -23,7 +24,7 @@ func testDB(t *testing.T) *gorm.DB {
 
 func addGoogleUser(t *testing.T, db *gorm.DB, suffix string) schema.GoogleAccount {
 	t.Helper()
-	row := schema.GoogleAccount{ID: "google_" + suffix, Email: suffix + "@example.com", Password: "password-" + suffix, GoogleUserID: "workspace_" + suffix, Purpose: schema.GooglePurposeGeneral, Status: schema.StatusAvailable}
+	row := schema.GoogleAccount{ID: "google_" + suffix, Email: suffix + "@example.com", Password: "password-" + suffix, GoogleUserID: "workspace_" + suffix, Purpose: "", Status: schema.StatusAvailable}
 	if err := db.Create(&row).Error; err != nil {
 		t.Fatal(err)
 	}
@@ -49,6 +50,7 @@ func TestDesignateReusesExistingGoogleUser(t *testing.T) {
 func TestAcquireIsIdempotentAndExclusivePerAccessKey(t *testing.T) {
 	db := testDB(t)
 	service := New(db)
+	googleService := resourcegoogle.NewService(db, nil, nil, "")
 	for _, id := range []string{"key_one", "key_two"} {
 		if err := db.Create(&schema.AccessKey{ID: id, OwnerUserID: id, KeyHash: "hash_" + id, KeyPrefix: "gw", Status: schema.StatusActive}).Error; err != nil {
 			t.Fatal(err)
@@ -60,22 +62,25 @@ func TestAcquireIsIdempotentAndExclusivePerAccessKey(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	first, err := service.Acquire("key_one")
+	first, err := googleService.AssignAccount("key_one", schema.GooglePurposeXbox)
 	if err != nil {
 		t.Fatal(err)
 	}
-	again, err := service.Acquire("key_one")
+	again, err := googleService.AssignAccount("key_one", schema.GooglePurposeXbox)
 	if err != nil || again.ID != first.ID || again.Password != first.Password {
 		t.Fatalf("repeat=%#v err=%v want=%#v", again, err, first)
 	}
-	second, err := service.Acquire("key_two")
+	if _, err := googleService.AssignAccount("key_one", ""); err == nil {
+		t.Fatal("one API key must not receive a second Google user with another purpose")
+	}
+	second, err := googleService.AssignAccount("key_two", schema.GooglePurposeXbox)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if second.ID == first.ID {
 		t.Fatalf("different keys acquired %q", first.ID)
 	}
-	if _, err := service.Acquire("missing_key"); !errors.Is(err, gorm.ErrRecordNotFound) {
+	if _, err := googleService.AssignAccount("missing_key", schema.GooglePurposeXbox); !errors.Is(err, gorm.ErrRecordNotFound) {
 		t.Fatalf("missing key error=%v", err)
 	}
 }

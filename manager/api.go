@@ -74,7 +74,6 @@ func (m *Manager) router() *gin.Engine {
 		{http.MethodPost, "/google-user/test/gmail/send"}, {http.MethodPost, "/google-user/test/drive/folders"},
 		{http.MethodGet, "/browser"}, {http.MethodPost, "/browser/reset"}, {http.MethodPost, "/browser/close"},
 		{http.MethodGet, "/telegram-bot"},
-		{http.MethodGet, "/xbox/account"},
 	} {
 		r.Handle(route.method, "/v1"+route.path, m.proxyGatewayResource("/v1"+route.path))
 	}

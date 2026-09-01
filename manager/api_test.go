@@ -137,27 +137,6 @@ func TestGatewayProxyForwardsGatewayKey(t *testing.T) {
 	}
 }
 
-func TestXBotGatewayProxyUsesSameGatewayKey(t *testing.T) {
-	resources := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet || r.URL.Path != "/v1/xbox/account" {
-			t.Errorf("request = %s %s", r.Method, r.URL.Path)
-		}
-		if r.Header.Get("Authorization") != "Bearer gw_sk_test" {
-			t.Errorf("gateway key was not forwarded")
-		}
-		_, _ = io.WriteString(w, `{"account":{"email":"bot@example.com","password":"secret"}}`)
-	}))
-	defer resources.Close()
-	service, _ := New("test", Config{Resources: ResourcesConfig{BaseURL: resources.URL, Timeout: time.Second}}, nil)
-	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodGet, "/v1/xbox/account", nil)
-	request.Header.Set("Authorization", "Bearer gw_sk_test")
-	service.router().ServeHTTP(recorder, request)
-	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `"password":"secret"`) {
-		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
-	}
-}
-
 func TestGoogleUserProxyForwardsPurpose(t *testing.T) {
 	resources := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v1/google-user" || r.URL.Query().Get("purpose") != "xbox" {

@@ -8,7 +8,6 @@ const (
 	StatusAvailable      = "available"
 	StatusAssigned       = "assigned"
 	StatusRevoked        = "revoked"
-	StatusReservedXBot   = "reserved_xbot"
 	GooglePurposeGeneral = "general"
 	GooglePurposeXbox    = "xbox"
 )
@@ -52,42 +51,8 @@ type GoogleAccount struct {
 	Password            string     `gorm:"type:text;not null" json:"password"`
 	GoogleUserID        string     `gorm:"size:160;uniqueIndex" json:"googleUserId"`
 	Status              string     `gorm:"size:24;not null;index" json:"status"`
-	Purpose             string     `gorm:"size:32;not null;default:general;index" json:"purpose"`
+	Purpose             string     `gorm:"size:32;not null;default:'';index" json:"purpose,omitempty"`
 	AssignedAccessKeyID *string    `gorm:"size:80;uniqueIndex" json:"assignedAccessKeyId,omitempty"`
-	AssignedAt          *time.Time `json:"assignedAt,omitempty"`
-	CreatedAt           time.Time  `json:"createdAt"`
-	UpdatedAt           time.Time  `json:"updatedAt"`
-}
-
-// GoogleAccountAssignment lets one Gateway key hold one Google identity per
-// purpose (general, xbox, and future purpose values).
-type GoogleAccountAssignment struct {
-	ID              string    `gorm:"primaryKey;size:80" json:"id"`
-	GoogleAccountID string    `gorm:"size:80;not null;uniqueIndex" json:"googleAccountId"`
-	AccessKeyID     string    `gorm:"size:80;not null;uniqueIndex:idx_google_assignment_purpose" json:"accessKeyId"`
-	Purpose         string    `gorm:"size:32;not null;uniqueIndex:idx_google_assignment_purpose" json:"purpose"`
-	CreatedAt       time.Time `json:"createdAt"`
-}
-
-const (
-	XBotStatusPendingRegistration = "pending_registration"
-	XBotStatusRegistered          = "registered"
-	XBotStatusInUse               = "in_use"
-)
-
-// XBotAccount is created from a managed Google identity, manually registered
-// with Xbox by an administrator, then exclusively assigned to one Gateway key.
-// Password remains retrievable because the assigned agent needs it for remote
-// browser login; callers must never log this model as a whole.
-type XBotAccount struct {
-	ID                  string     `gorm:"primaryKey;size:80" json:"id"`
-	GoogleAccountID     string     `gorm:"size:80;not null;uniqueIndex" json:"googleAccountId"`
-	Email               string     `gorm:"size:320;not null;uniqueIndex" json:"email"`
-	Password            string     `gorm:"type:text;not null" json:"password"`
-	Gamertag            *string    `gorm:"size:160;uniqueIndex" json:"gamertag,omitempty"`
-	Status              string     `gorm:"size:32;not null;index" json:"status"`
-	AssignedAccessKeyID *string    `gorm:"size:80;uniqueIndex" json:"assignedAccessKeyId,omitempty"`
-	RegisteredAt        *time.Time `json:"registeredAt,omitempty"`
 	AssignedAt          *time.Time `json:"assignedAt,omitempty"`
 	CreatedAt           time.Time  `json:"createdAt"`
 	UpdatedAt           time.Time  `json:"updatedAt"`

@@ -137,7 +137,6 @@ func TestUserRoutesRequireGatewayAPIKey(t *testing.T) {
 		{method: http.MethodPost, path: "/v1/browser/reset"},
 		{method: http.MethodPost, path: "/v1/browser/close"},
 		{method: http.MethodGet, path: "/v1/telegram-bot"},
-		{method: http.MethodGet, path: "/v1/xbox/account"},
 	}
 	for _, test := range tests {
 		recorder := httptest.NewRecorder()
