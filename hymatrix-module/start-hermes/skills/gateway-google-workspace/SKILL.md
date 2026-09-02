@@ -9,7 +9,7 @@ Use the bundled helper for Gmail and Drive operations. It obtains a short-lived 
 
 This Skill is authoritative for Gmail and Drive requests after Hub Gateway is configured. Do not invoke another `google-workspace` Skill, run Google OAuth setup, inspect local Google credential files, suggest himalaya or app passwords, or ask the user to create/connect a separate Google account. If a Gateway helper fails, report that failure instead of switching integrations.
 
-Use `--purpose xbox` only when operating the assigned Xbox bot mailbox. Keep one-time codes inside the calling process; never print mailbox bodies or codes into agent-visible output.
+The access-token endpoint automatically uses the Google user already assigned to the API key, including an Xbox-purpose user. Keep one-time codes inside the calling process; never print mailbox bodies or codes into agent-visible output.
 
 Configure:
 

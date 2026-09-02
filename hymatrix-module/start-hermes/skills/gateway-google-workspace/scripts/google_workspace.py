@@ -48,11 +48,10 @@ def hermes_env_value(name):
     return ""
 
 
-def gateway_token(purpose="", timeout=30):
+def gateway_token(timeout=30):
     base_url, api_key = gateway_credentials()
     base_url = base_url.rstrip("/")
-    query = "" if purpose in ("", "general") else "?" + urllib.parse.urlencode({"purpose": purpose})
-    request = urllib.request.Request(base_url + "/v1/google-user/access-token" + query)
+    request = urllib.request.Request(base_url + "/v1/google-user/access-token")
     request.add_header("Authorization", "Bearer " + api_key)
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
@@ -282,7 +281,6 @@ def add_mail_fields(parser):
 
 def build_parser():
     parser = argparse.ArgumentParser(description="Operate Gmail and Drive through Hub Gateway")
-    parser.add_argument("--purpose", choices=("general", "xbox"), default="general")
     commands = parser.add_subparsers(dest="command", required=True)
 
     profile = commands.add_parser("gmail-profile")
@@ -341,7 +339,7 @@ def build_parser():
 
 def main():
     args = build_parser().parse_args()
-    token, email = gateway_token(args.purpose)
+    token, email = gateway_token()
     result = args.func(token, email, args)
     print(json.dumps({"account": "assigned", "result": result}, ensure_ascii=False, indent=2))
 

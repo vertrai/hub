@@ -19,9 +19,9 @@ class SafeOutputTest(unittest.TestCase):
         response.__enter__.return_value.read.return_value = b'{"accessToken":"secret-token","email":"bot@example.com","expiresAt":"2099-01-01T00:00:00Z"}'
         output = io.StringIO()
         with (
-            patch.object(google_auth.urllib.request, "urlopen", return_value=response),
+            patch.object(google_auth.urllib.request, "urlopen", return_value=response) as urlopen,
             patch.object(google_auth, "gateway_credentials", return_value=("https://hub.example", "gateway-key")),
-            patch.object(google_auth.sys, "argv", ["google_auth.py", "--purpose", "xbox"]),
+            patch.object(google_auth.sys, "argv", ["google_auth.py"]),
             redirect_stdout(output),
         ):
             google_auth.main()
@@ -29,6 +29,7 @@ class SafeOutputTest(unittest.TestCase):
         self.assertNotIn("secret-token", output.getvalue())
         self.assertNotIn("bot@example.com", output.getvalue())
         self.assertTrue(result["tokenAvailable"])
+        self.assertNotIn("purpose=", urlopen.call_args.args[0].full_url)
 
 
 if __name__ == "__main__":

@@ -35,16 +35,16 @@ class SharedDriveUploadTest(unittest.TestCase):
         self.assertEqual(query_params(requests[0][1]).get("supportsAllDrives"), ["true"])
         self.assertEqual(query_params(requests[1][1]).get("supportsAllDrives"), ["true"])
 
-    def test_xbox_token_request_includes_purpose(self):
+    def test_token_request_does_not_include_purpose(self):
         response = MagicMock()
         response.__enter__.return_value.read.return_value = b'{"accessToken":"secret","email":"bot@example.com"}'
         with (
             patch.dict(google_workspace.os.environ, {"HUB_GATEWAY_URL": "https://hub.example", "HUB_GATEWAY_API_KEY": "gateway-key"}),
             patch.object(google_workspace.urllib.request, "urlopen", return_value=response) as urlopen,
         ):
-            token, email = google_workspace.gateway_token("xbox")
+            token, email = google_workspace.gateway_token()
         self.assertEqual((token, email), ("secret", "bot@example.com"))
-        self.assertEqual(query_params(urlopen.call_args.args[0].full_url).get("purpose"), ["xbox"])
+        self.assertNotIn("purpose", query_params(urlopen.call_args.args[0].full_url))
 
 
 if __name__ == "__main__":

@@ -17,7 +17,7 @@ func (fixedTokenIssuer) Issue(_ context.Context, email string) (*oauth2.Token, e
 	return &oauth2.Token{AccessToken: "token-for-" + email, Expiry: time.Now().Add(time.Hour)}, nil
 }
 
-func TestIssueTokenForXboxPurposeUsesAssignedXboxAccount(t *testing.T) {
+func TestIssueTokenUsesAlreadyAssignedXboxAccountWithoutPurpose(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
 	if err != nil {
 		t.Fatal(err)
@@ -34,7 +34,10 @@ func TestIssueTokenForXboxPurposeUsesAssignedXboxAccount(t *testing.T) {
 		t.Fatal(err)
 	}
 	service := NewService(db, nil, fixedTokenIssuer{}, "")
-	token, assigned, err := service.IssueTokenForPurpose(context.Background(), keyID, schema.GooglePurposeXbox)
+	if _, err := service.AcquireAccount(context.Background(), keyID, schema.GooglePurposeXbox); err != nil {
+		t.Fatal(err)
+	}
+	token, assigned, err := service.IssueToken(context.Background(), keyID)
 	if err != nil {
 		t.Fatal(err)
 	}

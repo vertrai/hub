@@ -11,7 +11,7 @@ Configure the Gateway URL and API key, then run:
 python3 scripts/google_auth.py
 ```
 
-For an assigned Xbox-purpose account, use `python3 scripts/google_auth.py --purpose xbox`.
+The access-token endpoint always issues a token for the Google user already assigned to the API key. Account purpose is used only when the account is first acquired; do not pass a purpose when requesting a token.
 
 Required environment:
 
