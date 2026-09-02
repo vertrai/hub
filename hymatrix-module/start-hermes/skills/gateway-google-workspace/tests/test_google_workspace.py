@@ -1,7 +1,7 @@
 import importlib.util
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 from urllib.parse import parse_qs, urlparse
 
 
@@ -34,6 +34,17 @@ class SharedDriveUploadTest(unittest.TestCase):
         self.assertEqual(len(requests), 2)
         self.assertEqual(query_params(requests[0][1]).get("supportsAllDrives"), ["true"])
         self.assertEqual(query_params(requests[1][1]).get("supportsAllDrives"), ["true"])
+
+    def test_xbox_token_request_includes_purpose(self):
+        response = MagicMock()
+        response.__enter__.return_value.read.return_value = b'{"accessToken":"secret","email":"bot@example.com"}'
+        with (
+            patch.dict(google_workspace.os.environ, {"HUB_GATEWAY_URL": "https://hub.example", "HUB_GATEWAY_API_KEY": "gateway-key"}),
+            patch.object(google_workspace.urllib.request, "urlopen", return_value=response) as urlopen,
+        ):
+            token, email = google_workspace.gateway_token("xbox")
+        self.assertEqual((token, email), ("secret", "bot@example.com"))
+        self.assertEqual(query_params(urlopen.call_args.args[0].full_url).get("purpose"), ["xbox"])
 
 
 if __name__ == "__main__":

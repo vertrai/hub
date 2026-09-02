@@ -48,13 +48,14 @@ def hermes_env_value(name):
     return ""
 
 
-def gateway_token():
+def gateway_token(purpose="", timeout=30):
     base_url, api_key = gateway_credentials()
     base_url = base_url.rstrip("/")
-    request = urllib.request.Request(base_url + "/v1/google-user/access-token")
+    query = "" if purpose in ("", "general") else "?" + urllib.parse.urlencode({"purpose": purpose})
+    request = urllib.request.Request(base_url + "/v1/google-user/access-token" + query)
     request.add_header("Authorization", "Bearer " + api_key)
     try:
-        with urllib.request.urlopen(request, timeout=30) as response:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
             data = json.loads(response.read().decode("utf-8") or "{}")
     except urllib.error.HTTPError as error:
         raise_api_error("gateway", error)
@@ -73,7 +74,7 @@ def raise_api_error(service, error):
     raise RuntimeError(f"{service} returned HTTP {error.code}: {detail}") from error
 
 
-def api_request(token, method, url, payload=None, content_type="application/json", raw=False):
+def api_request(token, method, url, payload=None, content_type="application/json", raw=False, timeout=90):
     body = None
     if payload is not None:
         body = payload if isinstance(payload, bytes) else json.dumps(payload).encode("utf-8")
@@ -82,7 +83,7 @@ def api_request(token, method, url, payload=None, content_type="application/json
     if body is not None:
         request.add_header("Content-Type", content_type)
     try:
-        with urllib.request.urlopen(request, timeout=90) as response:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
             data = response.read()
             if raw:
                 return data
@@ -281,6 +282,7 @@ def add_mail_fields(parser):
 
 def build_parser():
     parser = argparse.ArgumentParser(description="Operate Gmail and Drive through Hub Gateway")
+    parser.add_argument("--purpose", choices=("general", "xbox"), default="general")
     commands = parser.add_subparsers(dest="command", required=True)
 
     profile = commands.add_parser("gmail-profile")
@@ -339,9 +341,9 @@ def build_parser():
 
 def main():
     args = build_parser().parse_args()
-    token, email = gateway_token()
+    token, email = gateway_token(args.purpose)
     result = args.func(token, email, args)
-    print(json.dumps({"email": email, "result": result}, ensure_ascii=False, indent=2))
+    print(json.dumps({"account": "assigned", "result": result}, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":

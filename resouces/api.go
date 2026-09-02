@@ -386,7 +386,14 @@ func (g *Resouces) getGoogleUser(c *gin.Context) {
 }
 func (g *Resouces) issueGoogleToken(c *gin.Context) {
 	principal := mustGatewayPrincipal(c)
-	token, account, err := g.google.IssueToken(c.Request.Context(), principal.AccessKey.ID)
+	purpose := strings.ToLower(strings.TrimSpace(c.Query("purpose")))
+	if purpose == schema.GooglePurposeGeneral {
+		purpose = ""
+	} else if purpose != "" && purpose != schema.GooglePurposeXbox {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported Google user purpose"})
+		return
+	}
+	token, account, err := g.google.IssueTokenForPurpose(c.Request.Context(), principal.AccessKey.ID, purpose)
 	if err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return

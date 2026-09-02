@@ -165,7 +165,11 @@ func (s *Service) AcquireAccount(ctx context.Context, accessKeyID, purpose strin
 }
 
 func (s *Service) IssueToken(ctx context.Context, accessKeyID string) (*oauth2.Token, schema.GoogleAccount, error) {
-	account, err := s.AcquireAccount(ctx, accessKeyID, "")
+	return s.IssueTokenForPurpose(ctx, accessKeyID, "")
+}
+
+func (s *Service) IssueTokenForPurpose(ctx context.Context, accessKeyID, purpose string) (*oauth2.Token, schema.GoogleAccount, error) {
+	account, err := s.AcquireAccount(ctx, accessKeyID, purpose)
 	if err != nil {
 		return nil, schema.GoogleAccount{}, err
 	}

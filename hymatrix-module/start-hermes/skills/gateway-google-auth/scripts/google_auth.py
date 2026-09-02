@@ -6,6 +6,7 @@ import json
 import os
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -39,23 +40,30 @@ def hermes_env_value(name):
     return ""
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--token-only", action="store_true")
-    args = parser.parse_args()
+def gateway_token(purpose="general", timeout=30):
     base_url, api_key = gateway_credentials()
     base_url = base_url.rstrip("/")
-    request = urllib.request.Request(base_url + "/v1/google-user/access-token")
+    query = "" if purpose == "general" else "?" + urllib.parse.urlencode({"purpose": purpose})
+    request = urllib.request.Request(base_url + "/v1/google-user/access-token" + query)
     request.add_header("Authorization", "Bearer " + api_key)
     try:
-        with urllib.request.urlopen(request, timeout=30) as response:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
             data = json.loads(response.read().decode("utf-8") or "{}")
     except urllib.error.HTTPError as error:
         body = error.read().decode("utf-8", errors="replace")
         raise RuntimeError(f"gateway returned HTTP {error.code}: {body}") from error
     if not data.get("accessToken"):
         raise RuntimeError("gateway response does not contain an access token")
-    print(data["accessToken"] if args.token_only else json.dumps(data, ensure_ascii=False, indent=2))
+    return data
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--purpose", choices=("general", "xbox"), default="general")
+    args = parser.parse_args()
+    data = gateway_token(args.purpose)
+    safe = {"account": "assigned", "expiresAt": data.get("expiresAt"), "tokenAvailable": True}
+    print(json.dumps(safe, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":
