@@ -39,27 +39,23 @@ def hermes_env_value(name):
     return ""
 
 
-def gateway_token(timeout=30):
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--token-only", action="store_true")
+    args = parser.parse_args()
     base_url, api_key = gateway_credentials()
     base_url = base_url.rstrip("/")
     request = urllib.request.Request(base_url + "/v1/google-user/access-token")
     request.add_header("Authorization", "Bearer " + api_key)
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with urllib.request.urlopen(request, timeout=30) as response:
             data = json.loads(response.read().decode("utf-8") or "{}")
     except urllib.error.HTTPError as error:
         body = error.read().decode("utf-8", errors="replace")
         raise RuntimeError(f"gateway returned HTTP {error.code}: {body}") from error
     if not data.get("accessToken"):
         raise RuntimeError("gateway response does not contain an access token")
-    return data
-
-
-def main():
-    argparse.ArgumentParser().parse_args()
-    data = gateway_token()
-    safe = {"account": "assigned", "expiresAt": data.get("expiresAt"), "tokenAvailable": True}
-    print(json.dumps(safe, ensure_ascii=False, indent=2))
+    print(data["accessToken"] if args.token_only else json.dumps(data, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":

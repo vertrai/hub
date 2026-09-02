@@ -48,13 +48,13 @@ def hermes_env_value(name):
     return ""
 
 
-def gateway_token(timeout=30):
+def gateway_token():
     base_url, api_key = gateway_credentials()
     base_url = base_url.rstrip("/")
     request = urllib.request.Request(base_url + "/v1/google-user/access-token")
     request.add_header("Authorization", "Bearer " + api_key)
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with urllib.request.urlopen(request, timeout=30) as response:
             data = json.loads(response.read().decode("utf-8") or "{}")
     except urllib.error.HTTPError as error:
         raise_api_error("gateway", error)
@@ -73,7 +73,7 @@ def raise_api_error(service, error):
     raise RuntimeError(f"{service} returned HTTP {error.code}: {detail}") from error
 
 
-def api_request(token, method, url, payload=None, content_type="application/json", raw=False, timeout=90):
+def api_request(token, method, url, payload=None, content_type="application/json", raw=False):
     body = None
     if payload is not None:
         body = payload if isinstance(payload, bytes) else json.dumps(payload).encode("utf-8")
@@ -82,7 +82,7 @@ def api_request(token, method, url, payload=None, content_type="application/json
     if body is not None:
         request.add_header("Content-Type", content_type)
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with urllib.request.urlopen(request, timeout=90) as response:
             data = response.read()
             if raw:
                 return data
@@ -341,7 +341,7 @@ def main():
     args = build_parser().parse_args()
     token, email = gateway_token()
     result = args.func(token, email, args)
-    print(json.dumps({"account": "assigned", "result": result}, ensure_ascii=False, indent=2))
+    print(json.dumps({"email": email, "result": result}, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":

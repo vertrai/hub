@@ -11,8 +11,6 @@ Configure the Gateway URL and API key, then run:
 python3 scripts/google_auth.py
 ```
 
-The access-token endpoint always issues a token for the Google user already assigned to the API key. Account purpose is used only when the account is first acquired; do not pass a purpose when requesting a token.
-
 Required environment:
 
 ```bash
@@ -22,6 +20,12 @@ export HUB_GATEWAY_API_KEY="gw_sk_..."
 
 The Gateway caches valid Google tokens and refreshes them near expiry. Request a token when needed instead of maintaining a refresh token in the Agent.
 
-The CLI never prints raw tokens or account email. Local code that genuinely needs a token must import `gateway_token()` from the helper and keep the returned value in-process. Keep tokens out of chat, logs, source control, files, and command-line arguments. Prefer `gateway-google-workspace` for Gmail and Drive operations so the token is not exposed to the model-facing workflow.
+Use `--token-only` only when piping directly into a local process:
 
-The default output is safe metadata and never contains the token or email. Completion criterion: verify `tokenAvailable`, `account: assigned`, and a future `expiresAt`.
+```bash
+python3 scripts/google_auth.py --token-only
+```
+
+Keep tokens out of chat, logs, source control, and command-line arguments. Prefer `gateway-google-workspace` for Gmail and Drive operations so the token is not exposed to the model-facing workflow.
+
+Completion criterion: verify the response has `accessToken`, `email`, and a future `expiresAt` before calling Google APIs.
