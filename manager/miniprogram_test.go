@@ -77,6 +77,61 @@ func TestMiniProgramConfigRejectsMissingServerSecrets(t *testing.T) {
 	}
 }
 
+func TestMiniProgramAgentTemplateSelectsModule(t *testing.T) {
+	cfg := MiniProgramConfig{TaxModule: "tax-module", MicAIModule: "micai-module"}
+	tests := []struct {
+		input, wantTemplate, wantModule string
+	}{
+		{miniProgramTemplateTax, miniProgramTemplateTax, "tax-module"},
+		{miniProgramTemplateMicAI, miniProgramTemplateMicAI, "micai-module"},
+	}
+	for _, tt := range tests {
+		template, err := normalizeMiniProgramTemplate(tt.input)
+		if err != nil {
+			t.Fatalf("normalize %q: %v", tt.input, err)
+		}
+		if template != tt.wantTemplate {
+			t.Fatalf("normalize %q = %q, want %q", tt.input, template, tt.wantTemplate)
+		}
+		if module := miniProgramModuleForTemplate(cfg, template); module != tt.wantModule {
+			t.Fatalf("module for %q = %q, want %q", template, module, tt.wantModule)
+		}
+	}
+	if _, err := normalizeMiniProgramTemplate("unknown"); err == nil {
+		t.Fatal("unsupported template was accepted")
+	}
+	for _, legacy := range []string{"", "hermes"} {
+		if _, err := normalizeMiniProgramTemplate(legacy); err == nil {
+			t.Fatalf("legacy template %q was accepted", legacy)
+		}
+	}
+}
+
+func TestMicAIConfigRequiresIndependentModule(t *testing.T) {
+	cfg := MiniProgramConfig{TaxModule: "tax-module"}
+	if err := validateMiniProgramTemplateConfig(cfg, miniProgramTemplateTax); err != nil {
+		t.Fatalf("tax-agent config rejected: %v", err)
+	}
+	if err := validateMiniProgramTemplateConfig(cfg, miniProgramTemplateMicAI); err == nil || !strings.Contains(err.Error(), "micaiModule") {
+		t.Fatalf("expected actionable MicAI module error, got %v", err)
+	}
+}
+
+func TestMiniProgramPodRuntimeMustRemainHermes(t *testing.T) {
+	cfg := MiniProgramConfig{
+		AppID: "app", AppSecret: "secret", WeixinAPIBase: "https://api.weixin.qq.com",
+		NodeURL: "https://node", PrivateKey: "key", TaxModule: "tax", MicAIModule: "micai", RuntimeType: "docker",
+		GatewayURL: "https://gateway", HermesGatewayToken: "token", LLMAPIKey: "llm-key", LLMModel: "model",
+	}
+	if err := validateMiniProgramConfig(cfg); err == nil || !strings.Contains(err.Error(), "must be hermes") {
+		t.Fatalf("expected non-Hermes runtime rejection, got %v", err)
+	}
+	cfg.RuntimeType = "hermes"
+	if err := validateMiniProgramConfig(cfg); err != nil {
+		t.Fatalf("Hermes runtime rejected: %v", err)
+	}
+}
+
 func TestMiniProgramQRCanBeRenewedBeforeSharingOrAfterExpiry(t *testing.T) {
 	for _, status := range []string{schema.MiniProgramTaskWaitingForWeixin, schema.MiniProgramTaskQRExpired} {
 		if !canRenewMiniProgramQR(status) {

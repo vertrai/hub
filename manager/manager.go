@@ -21,12 +21,13 @@ type Config struct {
 }
 
 type MiniProgramConfig struct {
-	AppID, AppSecret, WeixinAPIBase       string
-	NodeURL, AdminURL, PrivateKey, Module string
-	RuntimeType, GatewayURL               string
-	HermesGatewayToken                    string
-	LLMAPIKey, LLMBaseURL                 string
-	LLMModel, LLMProvider                 string
+	AppID, AppSecret, WeixinAPIBase string
+	NodeURL, AdminURL, PrivateKey   string
+	TaxModule, MicAIModule          string
+	RuntimeType, GatewayURL         string
+	HermesGatewayToken              string
+	LLMAPIKey, LLMBaseURL           string
+	LLMModel, LLMProvider           string
 }
 
 type AdminGoogleConfig struct {
