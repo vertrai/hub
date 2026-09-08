@@ -428,6 +428,10 @@ func (m *Manager) startMiniProgramPod(ctx context.Context, task *schema.MiniProg
 	if err := m.wdb.Db.First(&bot, "id = ? AND user_id = ? AND status = ?", weixinBotID, task.UserID, schema.WeixinBotStatusAvailable).Error; err != nil {
 		return fmt.Errorf("load available Weixin bot: %w", err)
 	}
+	resource, err := m.hermesLLMResource(ctx, accessKey.Secret, "hub-chat")
+	if err != nil {
+		return fmt.Errorf("allocate LLM resource: %w", err)
+	}
 	if err := m.wdb.Db.Transaction(func(tx *gorm.DB) error {
 		if result := tx.Model(&schema.HymatrixPod{}).Where("id = ? AND status = ?", pod.ID, schema.PodStatusSpawned).Update("status", schema.PodStatusStarting); result.Error != nil || result.RowsAffected != 1 {
 			return fmt.Errorf("pod is not available to start")
@@ -443,7 +447,7 @@ func (m *Manager) startMiniProgramPod(ctx context.Context, task *schema.MiniProg
 		return err
 	}
 	cfg := m.config.MiniProgram
-	client, err := NewHymatrixClient(HymatrixConfig{NodeURL: pod.NodeURL, PrivateKey: pod.PrivateKey, Module: pod.Module, Scheduler: pod.Scheduler, LLMAPIKey: cfg.LLMAPIKey, LLMBaseURL: cfg.LLMBaseURL, LLMModel: cfg.LLMModel, LLMProvider: cfg.LLMProvider})
+	client, err := NewHymatrixClient(HymatrixConfig{NodeURL: pod.NodeURL, PrivateKey: pod.PrivateKey, Module: pod.Module, Scheduler: pod.Scheduler, LLMAPIKey: resource.APIKey, LLMBaseURL: resource.BaseURL, LLMModel: resource.Model, LLMProvider: resource.Provider})
 	if err == nil {
 		err = client.StartAgent(ctx, pod.PID, PodStartInput{GatewayURL: cfg.GatewayURL, GatewayAPIKey: accessKey.Secret, HermesGatewayToken: cfg.HermesGatewayToken, WeixinAccountID: bot.AccountID, WeixinToken: bot.Token, WeixinBaseURL: bot.BaseURL, WeixinAllowedUsers: bot.AllowedUserID})
 	}
@@ -456,7 +460,7 @@ func (m *Manager) startMiniProgramPod(ctx context.Context, task *schema.MiniProg
 		return err
 	}
 	pod.Status, pod.Error, pod.WeixinBotID = schema.PodStatusRunning, "", bot.ID
-	pod.GatewayAPIKey, pod.LLMAPIKey, pod.LLMBaseURL, pod.LLMModel, pod.LLMProvider = accessKey.Secret, cfg.LLMAPIKey, cfg.LLMBaseURL, cfg.LLMModel, cfg.LLMProvider
+	pod.GatewayAPIKey, pod.LLMAPIKey, pod.LLMBaseURL, pod.LLMModel, pod.LLMProvider = accessKey.Secret, resource.APIKey, resource.BaseURL, resource.Model, resource.Provider
 	return m.wdb.Db.Save(&pod).Error
 }
 
@@ -482,7 +486,7 @@ func (m *Manager) exchangeMiniProgramCode(ctx context.Context, code string) (str
 }
 
 func validateMiniProgramConfig(cfg MiniProgramConfig) error {
-	values := map[string]string{"appId": cfg.AppID, "appSecret": cfg.AppSecret, "pod.nodeURL": cfg.NodeURL, "pod.privateKey": cfg.PrivateKey, "pod.taxModule": cfg.TaxModule, "pod.micaiModule": cfg.MicAIModule, "pod.runtimeType": cfg.RuntimeType, "agent.gatewayURL": cfg.GatewayURL, "agent.hermesGatewayToken": cfg.HermesGatewayToken, "agent.llm.apiKey": cfg.LLMAPIKey, "agent.llm.model": cfg.LLMModel}
+	values := map[string]string{"appId": cfg.AppID, "appSecret": cfg.AppSecret, "pod.nodeURL": cfg.NodeURL, "pod.privateKey": cfg.PrivateKey, "pod.taxModule": cfg.TaxModule, "pod.micaiModule": cfg.MicAIModule, "pod.runtimeType": cfg.RuntimeType, "agent.gatewayURL": cfg.GatewayURL, "agent.hermesGatewayToken": cfg.HermesGatewayToken}
 	for name, value := range values {
 		if strings.TrimSpace(value) == "" {
 			return fmt.Errorf("miniProgram.%s is not configured", name)

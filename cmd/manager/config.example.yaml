@@ -38,8 +38,4 @@ miniProgram:
   agent:
     gatewayURL: https://your-manager.example
     hermesGatewayToken: ""
-    llm:
-      provider: custom
-      baseURL: https://api.deepseek.com
-      model: deepseek-chat
-      apiKey: ""
+    # LLM 配置通过此 Agent 的 Hub API Key 自动申请，在 /admin/llm 设置默认模型。

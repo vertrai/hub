@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>LLM 中转站 · Hub</title>
+  <link rel="stylesheet" href="/admin/assets/common.css">
+  <style>
+    [hidden]{display:none!important}
+    .page-head{align-items:center}.card{margin-bottom:22px}.section-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px}
+    .provider-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.provider{border:1px solid var(--line);border-radius:12px;padding:18px;min-width:0}.provider h3{margin-bottom:8px}.provider p{font-size:13px;margin:5px 0}.provider .actions{margin-top:16px}.provider code{font-size:12px}
+    code,.account-meta{overflow-wrap:anywhere}.models-list{padding:10px 12px;background:var(--canvas);border-radius:8px;margin:12px 0;max-height:160px;overflow:auto}.models-list code{display:block;margin:3px 0}
+    .form-grid>label{align-content:start}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}textarea{min-height:110px;font-family:ui-monospace,monospace;resize:vertical}input[type=checkbox]{width:auto}.check-label{display:flex;align-items:center;gap:8px}.form-actions{margin-top:20px}.field-help{font-size:12px;font-weight:400;color:var(--muted)}
+    .count{color:var(--muted);font-size:13px;font-weight:400}.key-form{display:flex;align-items:end;gap:12px}.key-form label{flex:1}.key-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:15px 0;border-bottom:1px solid var(--line)}#issued{white-space:pre-wrap;overflow-wrap:anywhere;background:#e7f7ef;padding:16px;border-radius:10px}
+    dialog{width:min(660px,calc(100% - 28px));max-height:90vh;overflow:auto;border:1px solid var(--line);border-radius:16px;padding:26px;color:var(--ink)}dialog::backdrop{background:rgba(15,25,45,.4)}dialog .section-head{align-items:start}.oauth-result{background:#f0f6ff;border:1px solid #cfe0f5;padding:18px;border-radius:10px;margin-top:20px}.user-code{display:block;font:750 28px/1.5 ui-monospace,monospace;letter-spacing:.14em;margin:10px 0}.oauth-result ol{padding-left:20px;color:var(--muted);font-size:13px;line-height:1.8}.status{margin-top:12px}.empty{text-align:left;padding:16px 0}.help-line{margin-top:10px;font-size:13px}
+    @media(max-width:850px){.provider-grid,.form-grid{grid-template-columns:1fr}.section-head{align-items:start;flex-wrap:wrap}.key-form{align-items:stretch;flex-direction:column}.wide{grid-column:auto}.key-row{align-items:start;flex-direction:column}}
+
+    .provider-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr))}.provider{padding:22px;background:#fff}.provider-heading,.provider-footer,.key-heading{display:flex;justify-content:space-between;align-items:center;gap:12px}.provider h3{font-size:18px;line-height:1.5;overflow-wrap:anywhere}.eyebrow{display:block;font:600 10px/1.5 ui-monospace,monospace;letter-spacing:.1em;color:#718096;margin-bottom:5px}.provider-endpoint{color:#6b7a90;overflow-wrap:anywhere;line-height:1.6!important;margin:10px 0 20px!important}.model-label{font-size:12px;color:#718096;margin-bottom:9px}.model-label span{margin-left:6px}.model-tags{display:flex;flex-wrap:wrap;gap:7px}.model-tag{display:inline-flex;padding:5px 9px;border:1px solid #dce5f0;background:#f7f9fc;border-radius:6px;color:#34465d;font:12px/1.4 ui-monospace,monospace;overflow-wrap:anywhere;max-width:100%}.provider-footer{border-top:1px solid #edf1f6;margin-top:20px;padding-top:14px;align-items:flex-start}.provider-footer .actions{margin:0}.provider-footer details{font-size:12px;color:#718096;min-width:0}.provider-footer details code{display:block;margin-top:8px}.actions{display:flex;flex-wrap:wrap;gap:8px}.actions button{padding:8px 12px;font-size:13px;min-height:36px}.danger-action{color:#b34c55!important}.route-list{margin:20px 0}.route-row{display:grid;grid-template-columns:minmax(0,1fr) 24px minmax(0,1fr) auto;align-items:center;gap:18px;padding:18px 0;border-bottom:1px solid #e8edf4}.route-row:first-child{border-top:1px solid #e8edf4}.route-row b{font-size:14px;overflow-wrap:anywhere}.route-row small{display:block;font-size:12px;color:#718096;margin-top:5px}.route-arrow{color:#8a9cb2;font-size:20px}.route-editor{background:#f7f9fc;border:1px solid #e4eaf2;border-radius:10px;padding:14px 18px}.route-editor summary{font-size:13px;font-weight:600;cursor:pointer}.route-editor form{margin-top:18px}.test-link{font-size:13px!important;color:#2364bd!important;text-decoration:none!important;white-space:nowrap;border:1px solid #d6e2f1;border-radius:8px;padding:10px 15px}.key-selector{padding:18px;background:#f7f9fc;border:1px solid #e4eaf2;border-radius:10px}.key-row{padding:22px 0;align-items:center}.key-info{min-width:0;flex:1}.key-heading{justify-content:flex-start;flex-wrap:wrap}.key-heading b{font-size:15px}.key-heading code{color:#718096;font-size:12px}.route-mapping{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin:13px 0}.route-mapping b{font-size:14px}.alias-label{font:13px ui-monospace,monospace}.alias-label small{font:11px system-ui;color:#718096;margin-left:5px}.key-details,.client-help{font-size:12px;color:#718096;margin-top:12px}.client-help p{font-size:12px}.status:empty{display:none}.key-details code{display:block;margin-top:6px}summary{cursor:pointer}button:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid #2871d6;outline-offset:3px}
+    @media(max-width:850px){.route-row{grid-template-columns:minmax(0,1fr) 20px minmax(0,1fr);gap:10px}.route-row .actions{grid-column:1/-1}.provider-footer{flex-wrap:wrap}.key-selector{padding:14px}.key-row>.actions{margin-top:12px}}
+
+    .station-address{display:flex;align-items:flex-end;gap:12px}.station-address label{flex:1;min-width:0}.station-address button{flex:none;white-space:nowrap}.settings-hint{font-size:12px!important;line-height:1.7;color:#718096;margin:9px 0 0}.auto-policy{margin-top:24px;border:1px solid #e0e7f0;border-radius:12px;overflow:hidden}.auto-policy>summary{display:flex;align-items:center;gap:14px;padding:18px 20px;background:#f7f9fc;list-style:none}.auto-policy>summary::-webkit-details-marker{display:none}.auto-policy>summary::before{content:'›';font-size:22px;color:#718096;transition:transform .15s}.auto-policy[open]>summary::before{transform:rotate(90deg)}.auto-policy>summary b{display:block;font-size:14px}.auto-policy>summary small{display:block;font-size:12px;color:#718096;margin-top:4px}.policy-count{margin-left:auto;color:#526b86;font-size:12px;background:#eaf0f7;padding:4px 10px;border-radius:20px;white-space:nowrap}.auto-policy-body{padding:0 20px 20px}.auto-policy-body>.settings-hint{margin:16px 0 20px}.policy-columns{display:grid;grid-template-columns:1fr 1fr;gap:24px}.model-check-group{border:0;padding:0;margin:0;min-width:0}.model-check-group legend{font-size:13px;font-weight:600;margin-bottom:10px}.model-check-group legend span{font-weight:400;font-size:12px;color:#718096;margin-left:6px}.model-check-list{display:grid;gap:8px}.model-choice{display:flex!important;align-items:center;gap:10px;border:1px solid #e0e7f0;border-radius:8px;padding:12px!important;cursor:pointer;font:13px ui-monospace,monospace!important;overflow-wrap:anywhere}.model-choice:has(input:checked){border-color:#8db4e8;background:#eff6ff}.model-choice input{margin:0;accent-color:#2468c7;width:16px!important;height:16px;flex-shrink:0}.default-model-panel{padding:16px;background:#f7f9fc;border-radius:10px;align-self:start;min-width:0}.default-model-panel label{font-size:13px}.default-route-preview{margin-top:16px;padding-top:14px;border-top:1px solid #dfe7f1;font:13px/1.7 ui-monospace,monospace;color:#305880;overflow-wrap:anywhere}.policy-footer{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:24px;padding-top:18px;border-top:1px solid #e8edf4}.policy-footer .settings-hint{margin:0}.station-address button,.policy-footer button{font-size:13px;padding:11px 16px}
+    @media(max-width:850px){.station-address{align-items:stretch;flex-direction:column}.policy-columns{grid-template-columns:1fr;gap:18px}.policy-footer{align-items:stretch;flex-direction:column}.auto-policy>summary{padding:14px 12px}.auto-policy-body{padding:0 12px 16px}.policy-count{font-size:11px}}
+ .key-policy-section{margin:20px 0;padding:18px;border:1px solid #e1e8f0;border-radius:10px}.key-policy-section h3{font-size:15px;margin:0 0 8px}.key-policy-section p{font-size:12px;color:#718096;line-height:1.7;margin:0 0 14px}.key-policy-section .model-check-list{max-height:260px;overflow:auto}.key-policy-section .settings-hint{margin:12px 0 0}
+
+    #oauthDialog{width:min(620px,calc(100% - 28px));padding:28px}#oauthDialog .section-head{margin-bottom:20px}#oauthDialog h2{font-size:22px}#oauthDialog .section-head p{font-size:13px;line-height:1.7;margin-top:8px}.oauth-steps{display:flex;align-items:center;gap:12px;padding:12px 0 20px;color:#8996a8;font-size:12px}.oauth-steps .current{color:#245ba0;font-weight:650}.step-arrow{color:#b0bbc8}.oauth-field{display:flex;flex-direction:column;gap:8px;font-size:13px}.oauth-field>.field-help{font-weight:400}.oauth-model-panel{margin-top:20px;padding:16px;background:#f7f9fc;border:1px solid #e4eaf2;border-radius:10px}#oauthModels{min-height:90px;font:13px/1.7 ui-monospace,monospace}#oauthModelPreview:empty{display:none}#oauthModelPreview{margin-top:12px}.oauth-footer{display:flex;justify-content:space-between;align-items:center;gap:16px;border-top:1px solid #e6ecf3;padding-top:18px;margin-top:22px}.oauth-footer button{font-size:13px;white-space:nowrap}.oauth-footer .settings-hint{margin:0}#oauthResult{padding:0;background:none;border:0;margin:0}.oauth-code-panel{padding:18px;border:1px solid #dae5f3;border-radius:10px;background:#f3f7fd}.oauth-code-row{display:flex;align-items:center;justify-content:space-between;gap:12px}.oauth-code-row .user-code{font-size:26px;overflow-wrap:anywhere}.oauth-code-row button{font-size:12px;padding:8px 12px}.oauth-open{display:inline-block}.oauth-instructions{margin:18px 0!important}#oauthTarget{margin:0 0 14px;color:#526780;font-size:13px}@media(max-width:600px){#oauthDialog{padding:20px}.oauth-footer{align-items:stretch;flex-direction:column}.oauth-code-row{flex-wrap:wrap}}
+  </style>
+</head>
+<body>
+<div class="shell">
+  <aside class="side"><div class="brand"><span>AGENT RUNTIME CONTROL</span><b>Agent Runtime Hub</b></div><!-- admin-navigation --></aside>
+  <main class="content">
+    <header class="page-head"><div><span class="eyebrow">MODEL GATEWAY</span><h1>LLM 中转站</h1><p>连接 Codex 账号与 API 服务，让 Agent 使用统一的模型入口。</p></div></header>
+    <section class="card"><h2>客户端接入</h2><code id="base"></code><p class="help-line">Hermes Provider 填 <code>custom</code>，Model 填下方完整模型名，API Key 使用本页签发的中转密钥。</p></section>
+    <section class="card">
+      <div class="section-head"><div><h2>Codex 账号 <span class="count" id="codexCount"></span></h2><p>通过 OpenAI OAuth 连接账号。可添加多个账号，分别配置模型与启用状态。</p></div><button id="addCodex" type="button">添加 Codex 账号</button></div>
+      <div id="codexProviders" class="provider-grid">加载中…</div>
+    </section>
+    <section class="card">
+      <div class="section-head"><div><h2>API Provider <span class="count" id="apiCount"></span></h2><p>支持 DeepSeek、阿里云 Token Plan / Coding Plan 和其他 OpenAI 兼容服务。</p></div><button id="addAPI" type="button">添加 API Provider</button></div>
+      <div id="apiProviders" class="provider-grid">加载中…</div>
+    </section>
+    <p id="providerStatus" class="status" role="status"></p>
+    <section class="card">
+      <h2>模型路由</h2><p>只有在这里创建的对外模型才能分配给 Key。来源模型不会自动发布；hub-chat 按每个 Key 的默认模型路由。</p>
+      <div id="llmRoutes" class="route-list"></div>
+      <details id="routeEditor" class="route-editor"><summary>新增 / 编辑模型路由</summary>
+      <form id="routeForm" class="form-grid"><label>对外模型名<input id="routeID" required placeholder="gpt-5.6-sol"></label><label>显示名称<input id="routeName" placeholder="GPT-5.6 Sol"></label><label class="wide">实际使用的上游模型<select id="routeTarget" required></select></label><div><button type="submit">保存模型路由</button></div></form><p id="routeStatus" class="status"></p></details>
+    </section>
+    <section class="card">
+      <div class="section-head"><div><h2>用户 LLM API Key</h2><p>选择用户及 Hub Key，创建或管理专属模型权限。</p></div><a class="test-link" href="/admin/llm/test">测试模型 →</a></div>
+      <div class="form-grid key-selector"><label>用户<select id="llmUser"></select></label><label>Hub Key<select id="llmHubKey"><option value="">请先选择用户</option></select></label><div><button id="createBoundKey" type="button" disabled>创建 LLM API Key</button> <button id="editBoundKey" type="button" class="secondary" hidden>修改模型策略</button></div></div>
+      <dialog id="createKeyDialog"><h2>创建 LLM API Key</h2><p id="createKeyOwner"></p><form id="keyForm"><section class="key-policy-section"><h3>允许使用的对外模型</h3><p>勾选这个 Key 可以直接调用的模型。</p><div id="keyModelChecks" class="model-check-list"></div><select id="keyModels" multiple hidden></select><p id="keySelectionCount" class="settings-hint"></p></section><section class="key-policy-section"><h3>hub-chat 默认路由</h3><p>仅决定调用 hub-chat 时使用哪个已授权模型。</p><label>默认对外模型<select id="keyDefault" required></select></label><div id="keyRoutePreview" class="default-route-preview" aria-live="polite"></div></section><div class="actions"><button type="submit">创建 LLM Key</button><button id="cancelCreateKey" type="button" class="secondary">取消</button></div><p id="createKeyStatus" class="status"></p></form></dialog>
+      <pre id="issued" hidden></pre><details class="client-help"><summary>Hermes 如何连接？</summary><p>设置 llm_provider=custom，并使用此 Key 的 Base URL。实际上游由模型路由决定。</p></details><p id="keyStatus" class="status" role="status"></p><div id="keys"></div>
+    </section>
+    <section class="card">
+      <div class="section-head"><div><h2>中转站设置</h2><p>管理客户端访问地址与自动申请的初始模型策略。</p></div></div>
+      <form id="stationForm" class="station-address"><label>LLM 对外 Base URL<input id="resourceBaseURL" type="url" required placeholder="https://hub.example/llm/v1"></label><button type="submit">保存地址</button></form><p class="settings-hint">此地址随 LLM Key 返回，需能被 Hermes 访问。</p><p id="stationStatus" class="status" role="status"></p>
+      <details class="auto-policy"><summary><span><b>小程序 / API 自动申请</b><small>为新申请的 LLM Key 设置初始权限</small></span><span class="policy-count" id="resourceSummary">未配置</span></summary>
+      <div class="auto-policy-body"><p class="settings-hint">仅用于自动申请。手动创建在弹窗中选择模型；已有 Key 保留各自策略。</p>
+      <form id="resourceForm"><div class="policy-columns"><fieldset class="model-check-group"><legend>允许的对外模型 <span id="resourceSelectedCount"></span></legend><div id="resourceModelChecks" class="model-check-list"></div><select id="resourceModels" multiple hidden aria-hidden="true" tabindex="-1"></select></fieldset><div class="default-model-panel"><label>hub-chat 默认模型<select id="resourceDefault"></select></label><p class="settings-hint">从左侧已勾选的模型中选择。</p><div id="resourceRoutePreview" class="default-route-preview" aria-live="polite">请先选择允许的模型</div></div></div><div class="policy-footer"><span class="settings-hint">保存后仅影响新申请的 Key</span><button type="submit">保存自动申请策略</button></div></form><p id="resourceStatus" class="status" role="status"></p></div>
+      </details>
+    </section>
+  </main>
+</div>
+
+<dialog id="oauthDialog" aria-labelledby="oauthTitle">
+  <div class="section-head"><div><h2 id="oauthTitle">添加 Codex 账号</h2><p>在 OpenAI 官方页面完成授权，凭据由 Hub 自动保存。</p></div><button type="button" class="secondary" id="closeOAuth">关闭</button></div>
+  <div class="oauth-steps" aria-label="连接步骤"><span id="oauthStepSetup" class="current">1 · 账号设置</span><span class="step-arrow">→</span><span id="oauthStepAuthorize">2 · OpenAI 授权</span></div>
+  <form id="oauthForm">
+    <label class="oauth-field">账号名称 <span class="field-help">选填，方便区分多个账号</span><input id="oauthName" maxlength="200" placeholder="例如：研发团队账号"></label>
+    <section class="oauth-model-panel"><label class="oauth-field">账号模型列表<textarea id="oauthModels" required rows="4" placeholder="已预填官方主要模型，可逐行增删"></textarea></label><div id="oauthModelPreview" class="model-tags"></div><p class="settings-hint">官方文档预设 · 核对日期 <span id="codexPresetDate"></span>。实际可用性取决于账号套餐；Astra 和 Spark 存在套餐限制，请移除账号不可用的模型。</p><div class="actions"><button id="appendCodexModels" type="button" class="secondary">补充预设模型（保留已有）</button><a href="https://learn.chatgpt.com/docs/models" target="_blank" rel="noopener noreferrer">查看官方模型文档 ↗</a></div></section>
+    <div class="oauth-footer"><span class="settings-hint">下一步将在 OpenAI 官方页面授权</span><button type="submit" id="startOAuth">获取授权码 →</button></div>
+  </form>
+  <div id="oauthResult" class="oauth-result" hidden>
+    <p id="oauthTarget" class="help-line"></p>
+    <div class="oauth-code-panel"><span class="eyebrow">一次性授权码</span><div class="oauth-code-row"><code id="oauthCode" class="user-code"></code><button type="button" class="secondary" id="copyOAuthCode">复制授权码</button></div><p id="oauthExpiry" class="settings-hint"></p></div>
+    <ol class="oauth-instructions"><li>打开 OpenAI 页面，登录要连接的账号。</li><li id="oauthAccountHelp">输入授权码并完成授权。</li><li>返回 Hub，点击“完成连接”。</li></ol>
+    <a id="oauthLink" class="test-link oauth-open" href="https://auth.openai.com/codex/device" target="_blank" rel="noopener noreferrer">打开 OpenAI 授权页面 ↗</a>
+    <div class="oauth-footer"><button type="button" class="secondary" id="cancelOAuth">取消本次授权</button><button type="button" id="completeOAuth">完成连接</button></div>
+  </div>
+  <p id="oauthStatus" class="status" role="status"></p>
+</dialog>
+
+<dialog id="apiDialog" aria-labelledby="apiTitle">
+  <div class="section-head"><h2 id="apiTitle">添加 API Provider</h2><button type="button" class="secondary" id="closeAPI">关闭</button></div>
+  <form id="apiForm"><div class="form-grid">
+    <label>备注名称<input id="apiName" maxlength="200" placeholder="团队推理服务"></label>
+    <label class="wide">服务商<select id="apiPreset"></select><span id="presetHelp" class="field-help"></span><a id="presetDocs" class="field-help" target="_blank" rel="noopener noreferrer">查看服务商文档 ↗</a></label>
+    <label class="wide">Base URL<input id="apiBaseURL" type="url" required placeholder="https://服务商地址/v1"></label>
+    <label class="wide">API Key<input id="apiKey" type="password" autocomplete="off" placeholder="填写服务商 API Key"><span class="field-help">编辑时留空，保留已保存的密钥。</span></label>
+    <label class="wide">支持的模型<textarea id="apiModels" required placeholder="每行或逗号分隔，填写服务商原始模型名"></textarea><span id="modelPresetHelp" class="field-help"></span></label><div class="wide"><button id="appendPresetModels" type="button" class="secondary" hidden>补充预设模型（保留已有）</button></div>
+    <label class="check-label wide"><input id="apiEnabled" type="checkbox" checked> 启用此 Provider</label>
+  </div><div class="actions form-actions"><button type="submit">保存 Provider</button></div></form><p id="apiStatus" class="status" role="status"></p>
+</dialog>
+
+<dialog id="settingsDialog" aria-labelledby="settingsTitle">
+  <div class="section-head"><h2 id="settingsTitle">编辑 Codex 账号</h2><button type="button" class="secondary" id="closeSettings">关闭</button></div>
+  <form id="settingsForm"><div class="form-grid"><label class="wide">账号备注名称<input id="settingsName" maxlength="200"></label><label class="wide">支持的模型<textarea id="settingsModels" required></textarea></label><label class="check-label wide"><input id="settingsEnabled" type="checkbox"> 启用此账号</label></div><div class="actions form-actions"><button type="submit">保存设置</button></div></form><p id="settingsStatus" class="status" role="status"></p>
+</dialog>
+<dialog id="keyPolicyDialog"><div class="section-head"><h2 id="keyPolicyTitle">修改 LLM Key 策略</h2><button id="closeKeyPolicy" type="button" class="secondary">关闭</button></div><form id="keyPolicyForm"><section class="key-policy-section"><h3>允许使用的对外模型</h3><p>勾选后，这个 Key 可以直接通过模型名调用。未勾选的模型不可用。</p><div id="policyModelChecks" class="model-check-list"></div><select id="policyModels" multiple hidden></select><p id="policySelectionCount" class="settings-hint"></p></section><section class="key-policy-section"><h3>hub-chat 默认路由</h3><p>调用 hub-chat 时使用哪个模型？请从上方已授权的模型中选择。</p><label>默认对外模型<select id="policyDefault"></select></label><div id="policyRoutePreview" class="default-route-preview" aria-live="polite"></div></section><button type="submit">保存模型设置</button></form><p id="keyPolicyStatus" class="status"></p></dialog>
+<script src="/admin/assets/common.js"></script>
+<script src="/admin/assets/llm.js"></script>
+</body>
+</html>

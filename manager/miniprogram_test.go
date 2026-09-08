@@ -121,7 +121,7 @@ func TestMiniProgramPodRuntimeMustRemainHermes(t *testing.T) {
 	cfg := MiniProgramConfig{
 		AppID: "app", AppSecret: "secret", WeixinAPIBase: "https://api.weixin.qq.com",
 		NodeURL: "https://node", PrivateKey: "key", TaxModule: "tax", MicAIModule: "micai", RuntimeType: "docker",
-		GatewayURL: "https://gateway", HermesGatewayToken: "token", LLMAPIKey: "llm-key", LLMModel: "model",
+		GatewayURL: "https://gateway", HermesGatewayToken: "token",
 	}
 	if err := validateMiniProgramConfig(cfg); err == nil || !strings.Contains(err.Error(), "must be hermes") {
 		t.Fatalf("expected non-Hermes runtime rejection, got %v", err)

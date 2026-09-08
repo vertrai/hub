@@ -55,6 +55,11 @@ func (g *Resouces) router() *gin.Engine {
 	admin.GET("/telegram/auth/status", g.telegramAuthStatus)
 	admin.GET("/telegram/auth/accounts", g.listTelegramAccounts)
 	user := r.Group("/v1", g.requireGatewayAPIKey)
+	user.GET("/access-key", func(c *gin.Context) {
+		key := mustGatewayPrincipal(c).AccessKey
+		c.Header("Cache-Control", "no-store")
+		c.JSON(200, gin.H{"accessKey": gin.H{"id": key.ID, "ownerUserId": key.OwnerUserID, "status": key.Status}})
+	})
 	user.GET("/google-user", g.requireResourceScope(resourceScopeGoogle), g.getGoogleUser)
 	user.GET("/google-user/access-token", g.requireResourceScope(resourceScopeGoogle), g.issueGoogleToken)
 	user.POST("/google-user/test/gmail/send", g.requireResourceScope(resourceScopeGoogle), g.testSendGmail)

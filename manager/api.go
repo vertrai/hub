@@ -37,6 +37,33 @@ func (m *Manager) router() *gin.Engine {
 	r.GET("/v1/admin/session", m.adminMe)
 	r.POST("/v1/admin/logout", m.adminLogout)
 	admin := r.Group("/v1/admin", m.requireAdmin)
+	admin.POST("/llm/oauth/device/start", m.startLLMOAuth)
+	admin.POST("/llm/oauth/device/complete", m.completeLLMOAuth)
+	admin.DELETE("/llm/oauth/device/:state", m.cancelLLMOAuth)
+	r.GET("/v1/llm", m.getLLMResource)
+	r.POST("/v1/llm", m.getLLMResource)
+	admin.GET("/access-keys/:id/llm-resource", m.adminManageBoundLLMResource)
+	admin.POST("/access-keys/:id/llm-resource", m.adminManageBoundLLMResource)
+	admin.GET("/access-keys/:id/llm", m.adminAcquireLLMResource)
+	admin.POST("/access-keys/:id/llm", m.adminAcquireLLMResource)
+	admin.GET("/llm/resource-settings", m.adminLLMResourceSettings)
+	admin.PUT("/llm/resource-settings", m.adminLLMResourceSettings)
+	admin.GET("/llm/routes", m.adminLLMRoutes)
+	admin.PUT("/llm/routes", m.adminLLMRoutes)
+	admin.DELETE("/llm/routes/:id", m.deleteLLMRoute)
+	admin.PATCH("/llm/keys/:id/policy", m.updateLLMKeyPolicy)
+	admin.GET("/llm/presets", m.listLLMPresets)
+	admin.GET("/llm/providers", m.listLLMProviders)
+	admin.POST("/llm/providers", m.saveLLMProvider)
+	admin.PUT("/llm/providers/:id", m.saveLLMProvider)
+	admin.DELETE("/llm/providers/:id", m.deleteLLMProvider)
+	admin.GET("/llm/keys", m.llmKeys)
+	admin.POST("/llm/keys", m.llmKeys)
+	admin.DELETE("/llm/keys/:id", m.llmKeys)
+	llmRoutes := r.Group("/llm/v1", m.requireLLMKey)
+	llmRoutes.GET("/models", m.llmModels)
+	llmRoutes.POST("/responses", m.relayLLM)
+	llmRoutes.POST("/chat/completions", m.relayLLM)
 	admin.POST("/users", m.createUserAccessKey)
 	admin.GET("/users", m.listUsers)
 	admin.PATCH("/access-keys/:id/scopes", m.updateAccessKeyScopes)
@@ -421,6 +448,7 @@ func (m *Manager) startPod(c *gin.Context) {
 		EnableTelegram                                                     bool `json:"enableTelegram"`
 		LLM                                                                struct {
 			APIKey, BaseURL, Model, Provider string
+			UseHub                           bool `json:"useHub"`
 		} `json:"llm"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.AccessKeyID) == "" {
@@ -445,20 +473,28 @@ func (m *Manager) startPod(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "gatewayUrl must be an absolute HTTP or HTTPS URL"})
 		return
 	}
-	req.LLM.Provider = strings.TrimSpace(req.LLM.Provider)
-	if req.LLM.Provider == "" {
-		req.LLM.Provider = "custom"
-	}
-	if strings.TrimSpace(req.LLM.Model) == "" || strings.TrimSpace(req.LLM.APIKey) == "" || (req.LLM.Provider == "custom" && strings.TrimSpace(req.LLM.BaseURL) == "") {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "llm.model and llm.apiKey are required; llm.baseUrl is also required for custom provider"})
-		return
-	}
 	var accessKey schema.AccessKey
 	if err := m.wdb.Db.Where("id = ? AND user_id = ? AND status = ?", req.AccessKeyID, pod.UserID, "available").First(&accessKey).Error; errors.Is(err, gorm.ErrRecordNotFound) {
 		c.JSON(http.StatusConflict, gin.H{"error": "access key is unavailable, belongs to another user, or is already assigned"})
 		return
 	} else if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if req.LLM.UseHub {
+		resource, err := m.hermesLLMResource(c.Request.Context(), accessKey.Secret, req.LLM.Model)
+		if err != nil {
+			llmResourceFailure(c, err)
+			return
+		}
+		req.LLM.APIKey, req.LLM.BaseURL, req.LLM.Provider, req.LLM.Model = resource.APIKey, resource.BaseURL, resource.Provider, resource.Model
+	}
+	req.LLM.Provider = strings.TrimSpace(req.LLM.Provider)
+	if req.LLM.Provider == "" {
+		req.LLM.Provider = "custom"
+	}
+	if strings.TrimSpace(req.LLM.Model) == "" || strings.TrimSpace(req.LLM.APIKey) == "" || (req.LLM.Provider == "custom" && strings.TrimSpace(req.LLM.BaseURL) == "") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "llm.model and llm.apiKey are required; llm.baseUrl is also required for custom provider"})
 		return
 	}
 	var weixinBot schema.WeixinBot

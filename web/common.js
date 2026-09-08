@@ -67,11 +67,17 @@ const statusLabels = {
   spawning: "创建中",
   spawned: "已提交",
   running: "运行中",
+  ready: "Xbox 已就绪",
+  waiting_setup: "等待设置 Xbox",
   failed: "失败",
 };
 
 function pill(status) {
   return `<span class="pill ${esc(status)}">${esc(statusLabels[status] || status || "-")}</span>`;
+}
+
+function xboxSetupPill(status) {
+  return pill(status === "ready" ? "ready" : "waiting_setup");
 }
 
 function setBusy(button, busy, text = "处理中…") {

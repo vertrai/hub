@@ -151,7 +151,7 @@ func TestXBotPageSupportsPurposeDesignationWorkflow(t *testing.T) {
 	RegisterRoutes(router, allowAll)
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/admin/xbot", nil))
-	for _, expected := range []string{"Xbox User 资源池", "指定为 Xbox User", "/v1/admin/xbox/bots", "/ready", "复制账号密码", "waiting_setup", "Xbox 已注册，标记可用"} {
+	for _, expected := range []string{"Xbox User 资源池", "指定为 Xbox User", "/v1/admin/xbox/bots", "/ready", "复制账号密码", "xboxSetupPill", `x.xboxStatus!=="ready"`, "Xbox 已注册，标记可用"} {
 		if !strings.Contains(recorder.Body.String(), expected) {
 			t.Errorf("Xbox Bot page is missing %q", expected)
 		}

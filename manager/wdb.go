@@ -23,7 +23,7 @@ func NewWdb(dsn string) (*Wdb, error) {
 	if err := w.renameLegacyTables(); err != nil {
 		return nil, err
 	}
-	if err := w.Db.AutoMigrate(&schema.User{}, &schema.AccessKey{}, &schema.HymatrixPod{}, &schema.WeixinBot{}, &schema.MiniProgramAgentTask{}); err != nil {
+	if err := w.Db.AutoMigrate(&schema.LLMRoute{}, &schema.LLMResourceSettings{}, &schema.LLMProvider{}, &schema.LLMKey{}, &schema.User{}, &schema.AccessKey{}, &schema.HymatrixPod{}, &schema.WeixinBot{}, &schema.MiniProgramAgentTask{}); err != nil {
 		return nil, fmt.Errorf("migrate postgres: %w", err)
 	}
 	// Before business templates were introduced, tax-agent tasks were stored as
