@@ -4,7 +4,6 @@ bin = "bin"
 RUN = [
   "python -m pip install --no-cache-dir 'python-telegram-bot==22.6' 'aiohttp==3.13.3' && python -c 'import telegram; import telegram.ext; import aiohttp'",
 ]
-CMD = ["start-hermes"]
 
 [vmdocker]
 public = [

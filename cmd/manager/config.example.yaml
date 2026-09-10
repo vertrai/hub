@@ -4,9 +4,40 @@ ginMode: debug
 
 postgres:
   dsn: postgresql://postgres@127.0.0.1:5432/hub_manager?sslmode=disable
-admin:
-  apiKey: replace-with-manager-admin-api-key
+auth:
+  google:
+    clientId: 6413958546-eo8gja7e3erq219e7vj8vqrgrjum0hl9.apps.googleusercontent.com
+    allowedEmails:
+      - sandy@ever.vision
+  jwt:
+    issuer: hub-auth
+    # 相对于本配置文件解析。共享私钥表示 manager 与 platformServer 属于同一签名信任域。
+    privateKeyFile: ../../../agent-hub/cmd/platformServer/data/auth_private.pem
+    publicKeyFile: ../../../agent-hub/cmd/platformServer/data/auth_public.pem
+    accessTokenTTLMinutes: 600
+    audience: manager
+    cookieSecure: false # 生产 HTTPS 环境请设为 true
 resources:
   baseURL: http://127.0.0.1:8085
   adminAPIKey: must-match-resouces-admin-api-key
   timeout: 30s
+
+# 小程序一键创建 Hermes Agent。所有敏感配置只保存在 manager 服务端。
+miniProgram:
+  appId: ""
+  appSecret: ""
+  weixinAPIBase: https://api.weixin.qq.com
+  pod:
+    nodeURL: https://your-hymatrix-node.example
+    adminURL: http://your-hymatrix-node.example:9091
+    privateKey: ""
+    module: ""
+    runtimeType: hermes
+  agent:
+    gatewayURL: https://your-manager.example
+    hermesGatewayToken: ""
+    llm:
+      provider: custom
+      baseURL: https://api.deepseek.com
+      model: deepseek-chat
+      apiKey: ""

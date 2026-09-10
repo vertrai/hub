@@ -24,9 +24,9 @@
   </head>
   <body>
     <div class="shell">
-      <aside class="side"><div class="brand"><span>AGENT RUNTIME CONTROL</span><b>Agent Runtime Hub</b></div><nav class="nav"><small>MANAGER</small><a href="/admin">管理总览</a><a href="/admin/users">用户与密钥</a><a href="/admin/hymatrix">Hymatrix Pods</a><div class="divider"></div><small>RESOURCES</small><a href="/admin/google">Google 资源池</a><a class="active" href="/admin/browser">Browser 资源池</a><a href="/admin/telegram">Telegram 资源池</a><a href="/admin/test">资源 API 测试</a></nav></aside>
+      <aside class="side"><div class="brand"><span>AGENT RUNTIME CONTROL</span><b>Agent Runtime Hub</b></div><nav class="nav"><small>MANAGER</small><a href="/admin">管理总览</a><a href="/admin/users">用户与密钥</a><a href="/admin/hymatrix">Hymatrix Pods</a><div class="divider"></div><small>RESOURCES</small><a href="/admin/google">Google 资源池</a><a class="active" href="/admin/browser">Browser 资源池</a><a href="/admin/xbot">Xbox Bot 资源池</a><a href="/admin/telegram">Telegram 资源池</a><a href="/admin/weixin">Weixin 扫码测试</a><a href="/admin/test">资源 API 测试</a></nav></aside>
       <main class="content">
-        <header class="page-head browser-head"><div><div class="eyebrow">Persistent browser inventory</div><h1>Browser 资源池</h1><p>查看 API Key 已创建的持久化 Browser Profile 与当前会话状态。</p></div><label class="admin-key">Manager Admin API Key<input id="adminKey" type="password" placeholder="所有管理页面共用" /></label></header>
+        <header class="page-head browser-head"><div><div class="eyebrow">Persistent browser inventory</div><h1>Browser 资源池</h1><p>查看 API Key 已创建的持久化 Browser Profile 与当前会话状态。</p></div></header>
         <div class="model-note"><b>按需创建</b><span>Browser 不需要提前补池。拥有 Browser 权限的 API Key 首次请求时会创建独立 Profile，后续请求复用该 Profile；重置只替换会话，不清除 Profile。</span></div>
         <section class="grid browser-summary">
           <article class="card metric"><p>已创建 Profile</p><strong id="total">—</strong><p>每个 API Key 最多一个。</p></article>
@@ -62,8 +62,7 @@
         }finally{setBusy($("refresh"),false)}
       }
       $("refresh").onclick=loadBrowserResources;
-      document.addEventListener("manager-admin-key-change",loadBrowserResources);
-      if(currentManagerAdminKey())loadBrowserResources();
+      loadBrowserResources();
     </script>
   </body>
 </html>

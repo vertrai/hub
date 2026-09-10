@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>管理员登录 · Agent Runtime Hub</title>
+  <link rel="stylesheet" href="/admin/assets/common.css">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <style>
+    :root{--gate-navy:#0b1730;--gate-navy-soft:#142744;--gate-cyan:#2cc9c3;--gate-ice:#f3f7fa;--gate-ink:#15233b;--gate-muted:#66758b;--gate-line:#d9e3eb;--gate-alert:#b42318}
+    *{box-sizing:border-box}
+    body{min-height:100vh;margin:0;display:grid;place-items:center;padding:32px;background:var(--gate-ice);color:var(--gate-ink);font-family:"Avenir Next","PingFang SC","Microsoft YaHei",ui-sans-serif,system-ui,sans-serif}
+    body:before{content:"";position:fixed;inset:0;pointer-events:none;background-image:linear-gradient(rgba(11,23,48,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(11,23,48,.035) 1px,transparent 1px);background-size:32px 32px;mask-image:linear-gradient(to bottom,black,transparent 78%)}
+    .access-gate{position:relative;isolation:isolate;display:grid;grid-template-columns:minmax(300px,.88fr) minmax(380px,1.12fr);width:min(920px,100%);min-height:520px;overflow:hidden;border:1px solid var(--gate-line);border-radius:28px;background:#fff;box-shadow:0 28px 70px rgba(21,35,59,.12),0 2px 8px rgba(21,35,59,.04)}
+    .identity-panel{position:relative;overflow:hidden;display:flex;flex-direction:column;justify-content:space-between;padding:44px 42px;background:var(--gate-navy);color:#fff}
+    .identity-panel:before{content:"";position:absolute;width:360px;height:360px;right:-210px;top:50%;transform:translateY(-50%);border:1px solid rgba(44,201,195,.35);border-radius:50%;box-shadow:0 0 0 42px rgba(44,201,195,.045),0 0 0 88px rgba(44,201,195,.025)}
+    .identity-panel:after{content:"";position:absolute;right:-1px;top:12%;width:2px;height:76%;background:linear-gradient(transparent,var(--gate-cyan),transparent);animation:scan 4.8s ease-in-out infinite}
+    .wordmark{position:relative;z-index:1;display:flex;align-items:center;gap:14px}
+    .mark{display:grid;place-items:center;width:48px;height:48px;border:1px solid rgba(255,255,255,.2);border-radius:14px;background:rgba(255,255,255,.07);font:800 18px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:-.04em}
+    .wordmark-copy b{display:block;font-size:13px;letter-spacing:.04em}.wordmark-copy span{display:block;margin-top:3px;color:#91a3ba;font:700 9px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.14em;text-transform:uppercase}
+    .system-copy{position:relative;z-index:1;margin:68px 0 auto}.system-copy .kicker{display:flex;align-items:center;gap:9px;color:var(--gate-cyan);font:750 10px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.15em;text-transform:uppercase}.system-copy .kicker:before{content:"";width:20px;height:1px;background:currentColor}.system-copy h2{max-width:260px;margin:18px 0 14px;color:#fff;font-size:34px;line-height:1.08;letter-spacing:-.045em}.system-copy p{max-width:270px;color:#9eacc0;font-size:14px;line-height:1.75}
+    .system-state{position:relative;z-index:1;display:flex;align-items:center;gap:10px;padding-top:22px;border-top:1px solid rgba(255,255,255,.12);color:#b9c5d5;font:650 10px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em;text-transform:uppercase}.pulse{width:7px;height:7px;border-radius:50%;background:var(--gate-cyan);box-shadow:0 0 0 5px rgba(44,201,195,.12)}
+    .login-panel{display:flex;align-items:center;padding:54px 64px}.login-inner{width:100%;max-width:390px;margin:auto}.eyebrow{color:#0789a7;font:750 10px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.16em;text-transform:uppercase}.login-inner h1{margin:14px 0 12px;font-size:40px;line-height:1.08;letter-spacing:-.05em}.intro{color:var(--gate-muted);font-size:15px;line-height:1.75}.admission{display:grid;grid-template-columns:28px 1fr;gap:12px;margin:28px 0 24px;padding:15px 16px;border:1px solid #dce7ed;border-radius:14px;background:#f7fafb}.shield{display:grid;place-items:center;width:28px;height:28px;border-radius:9px;background:#e3f8f6;color:#087d79;font-size:14px;font-weight:850}.admission b{display:block;margin:1px 0 4px;font-size:12px}.admission p{color:#718096;font-size:11px;line-height:1.55}.google-zone{display:grid;place-items:center;min-height:48px;padding:2px}.login-status{min-height:18px;margin-top:14px;text-align:center;color:#718096;font-size:12px}.error-box{display:none;grid-template-columns:22px 1fr;gap:10px;margin-top:18px;padding:13px 14px;border:1px solid #f0b8b3;border-radius:12px;background:#fff6f5;color:#7f1d1d}.error-box.visible{display:grid}.error-icon{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;background:#fee4e2;color:var(--gate-alert);font-size:13px;font-weight:900}.error-box strong{display:block;margin-bottom:3px;font-size:12px}.error-box p{color:#9b2c25;font-size:11px;line-height:1.55}
+    @keyframes scan{0%,100%{opacity:.3;transform:translateY(-10%)}50%{opacity:1;transform:translateY(10%)}}
+    @media(max-width:760px){body{display:block;padding:18px}.access-gate{grid-template-columns:1fr;min-height:0}.identity-panel{min-height:220px;padding:28px}.identity-panel:before{right:-235px}.system-copy{margin:34px 0}.system-copy h2{font-size:27px}.system-copy p{display:none}.system-state{padding-top:16px}.login-panel{padding:38px 28px 42px}.login-inner h1{font-size:34px}}
+    @media(max-width:420px){body{padding:0;background:#fff}.access-gate{border:0;border-radius:0;box-shadow:none}.identity-panel{min-height:196px}.login-panel{padding:34px 22px}.admission{margin-top:24px}}
+    @media(prefers-reduced-motion:reduce){.identity-panel:after{animation:none}}
+  </style>
+</head>
+<body>
+  <main class="access-gate">
+    <section class="identity-panel" aria-label="Agent Runtime Hub">
+      <div class="wordmark"><div class="mark">AR</div><div class="wordmark-copy"><b>Agent Runtime Hub</b><span>Control plane</span></div></div>
+      <div class="system-copy"><div class="kicker">Restricted access</div><h2>运行时控制中心</h2><p>集中管理用户、资源池与 Agent 运行环境。所有管理操作均绑定已授权身份。</p></div>
+      <div class="system-state"><span class="pulse"></span><span>Authentication gateway online</span></div>
+    </section>
+    <section class="login-panel">
+      <div class="login-inner">
+        <div class="eyebrow">Administrator access</div>
+        <h1>管理员登录</h1>
+        <p class="intro">选择已加入管理员白名单的 Google 账号，验证通过后进入控制台。</p>
+        <div class="admission"><div class="shield">✓</div><div><b>仅限授权账号</b><p>系统会核验 Google 身份和完整邮箱地址，普通账号无法进入后台。</p></div></div>
+        <div id="googleButton" class="google-zone" aria-label="Google 登录"></div>
+        <div id="loginStatus" class="login-status" aria-live="polite">正在连接 Google 登录服务…</div>
+        <div id="error" class="error-box" role="alert" aria-live="assertive"><div class="error-icon">!</div><div><strong id="errorTitle">无法登录</strong><p id="errorMessage"></p></div></div>
+      </div>
+    </section>
+  </main>
+  <script>
+    const errorNode=document.getElementById("error"),errorTitle=document.getElementById("errorTitle"),errorMessage=document.getElementById("errorMessage"),statusNode=document.getElementById("loginStatus");
+    function showError(title,message){errorTitle.textContent=title;errorMessage.textContent=message;errorNode.classList.add("visible");statusNode.textContent=""}
+    async function postGoogleCredential(response){
+      errorNode.classList.remove("visible");statusNode.textContent="正在验证管理员身份…";
+      try{
+        const result=await fetch("/v1/admin/auth/google",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id_token:response.credential})});
+        const data=await result.json().catch(()=>({}));
+        if(result.status===403||data.code==="admin_not_allowed"){showError("此账号无法进入后台","该 Google 账号未被授权为管理员。请更换账号，或联系管理员将邮箱加入白名单。");return}
+        if(!result.ok){showError("Google 身份验证失败",data.error||"无法验证所选账号，请重新选择后再试。");return}
+        statusNode.textContent="验证通过，正在进入控制台…";location.assign(data.redirect||"/admin");
+      }catch(error){showError("无法连接登录服务","网络连接异常，请检查网络后重新选择 Google 账号。");}
+    }
+    async function renderGoogleButton(retry=0){
+      try{
+        const response=await fetch("/v1/admin/auth/info");if(!response.ok)throw new Error();const info=await response.json();
+        if(!info.googleClientId){showError("登录服务未配置","缺少 Google Client ID，请检查 manager 认证配置。");return}
+        if(!window.google?.accounts?.id){if(retry>80){showError("Google 登录不可用","登录组件加载失败，请检查网络后刷新页面。");return}setTimeout(()=>renderGoogleButton(retry+1),100);return}
+        const buttonZone=document.getElementById("googleButton"),buttonWidth=Math.min(320,Math.floor(buttonZone.getBoundingClientRect().width));
+        google.accounts.id.initialize({client_id:info.googleClientId,callback:postGoogleCredential});google.accounts.id.renderButton(buttonZone,{theme:"outline",size:"large",text:"signin_with",shape:"pill",width:buttonWidth});statusNode.textContent="使用 Google 账号继续";
+      }catch(error){showError("无法连接登录服务","暂时无法读取登录配置，请稍后刷新重试。")}
+    }
+    renderGoogleButton();
+  </script>
+</body>
+</html>

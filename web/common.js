@@ -1,24 +1,11 @@
 const $ = (id) => document.getElementById(id);
-const managerAdminKeyStorage = "managerAdminKey";
 const enhancementStylesheet = document.createElement("link");
 enhancementStylesheet.rel = "stylesheet";
 enhancementStylesheet.href = "/admin/assets/admin-enhancements.css";
 document.head.append(enhancementStylesheet);
 
-function currentManagerAdminKey() {
-  const input = $("adminKey");
-  const visible = input ? input.value.trim() : "";
-  return (
-    visible ||
-    sessionStorage.getItem(managerAdminKeyStorage) ||
-    sessionStorage.getItem("gatewayAdminKey") ||
-    ""
-  );
-}
-
 function adminHeaders() {
   return {
-    Authorization: "Bearer " + currentManagerAdminKey(),
     "Content-Type": "application/json",
   };
 }
@@ -30,40 +17,15 @@ async function adminRequest(path, options = {}) {
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
+	if (response.status === 401) {
+	  window.location.assign("/admin/login");
+	}
     const error = new Error(data.error || `HTTP ${response.status}`);
     error.status = response.status;
     error.data = data;
     throw error;
   }
   return data;
-}
-
-function initAdminKey() {
-  const input = $("adminKey");
-  if (!input || input.dataset.initialized) return;
-  input.dataset.initialized = "true";
-  const legacy = sessionStorage.getItem("gatewayAdminKey") || "";
-  const saved = sessionStorage.getItem(managerAdminKeyStorage) || legacy;
-  if (legacy && !sessionStorage.getItem(managerAdminKeyStorage)) {
-    sessionStorage.setItem(managerAdminKeyStorage, legacy);
-    sessionStorage.removeItem("gatewayAdminKey");
-  }
-  input.value = saved;
-  let notifyTimer;
-  const save = () =>
-    sessionStorage.setItem(managerAdminKeyStorage, input.value.trim());
-  const notify = () =>
-    document.dispatchEvent(new CustomEvent("manager-admin-key-change"));
-  input.addEventListener("input", () => {
-    save();
-    clearTimeout(notifyTimer);
-    notifyTimer = setTimeout(notify, 350);
-  });
-  input.addEventListener("change", () => {
-    save();
-    clearTimeout(notifyTimer);
-    notify();
-  });
 }
 
 function initMobileNavigation() {
@@ -125,6 +87,5 @@ function showStatus(node, message, ok = false) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  initAdminKey();
   initMobileNavigation();
 });

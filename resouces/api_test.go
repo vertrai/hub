@@ -113,6 +113,8 @@ func TestBrowserAdminRouteRequiresKey(t *testing.T) {
 	for _, test := range []struct{ method, path string }{
 		{http.MethodGet, "/v1/internal/browser/sessions"},
 		{http.MethodPost, "/v1/internal/browser/sessions/brw_test/close"},
+		{http.MethodPost, "/v1/internal/xbox/bots"},
+		{http.MethodGet, "/v1/internal/xbox/bots"},
 	} {
 		recorder := httptest.NewRecorder()
 		request := httptest.NewRequest(test.method, test.path, nil)

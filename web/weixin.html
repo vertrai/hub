@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Weixin 扫码测试</title>
+  <link rel="stylesheet" href="/admin/assets/common.css"><link rel="stylesheet" href="/admin/assets/admin-enhancements.css">
+  <style>
+    .bind-grid{display:grid;grid-template-columns:minmax(320px,480px) minmax(360px,1fr);gap:20px}.qr-box{text-align:center}.qr-box label{text-align:left;margin:16px 0}.qr-box img{width:320px;max-width:100%;border-radius:16px;background:#fff;padding:12px}.weixin-result textarea{width:100%;min-height:190px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}.warning{color:#9a5a00}.actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}@media(max-width:900px){.bind-grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body><div class="shell">
+  <aside class="side"><div class="brand"><span>AGENT RUNTIME CONTROL</span><b>Agent Runtime Hub</b></div><nav class="nav"><small>MANAGER</small><a href="/admin">管理总览</a><a href="/admin/users">用户与密钥</a><a href="/admin/hymatrix">Hymatrix Pods</a><div class="divider"></div><small>RESOURCES</small><a href="/admin/google">Google 资源池</a><a href="/admin/browser">Browser 资源池</a><a href="/admin/xbot">Xbox Bot 资源池</a><a href="/admin/telegram">Telegram 资源池</a><a class="active" href="/admin/weixin">Weixin 扫码测试</a><a href="/admin/test">资源 API 测试</a></nav></aside>
+  <main class="content">
+    <header class="page-head"><div><div class="eyebrow">RESOURCES · ILINK BOT</div><h1>Weixin Bot 授权</h1><p>为指定用户扫码创建一个一次性分配给 Hermes Pod 的 iLink Bot。</p></div></header>
+    <section class="bind-grid">
+      <article class="card qr-box"><h2>1. 扫码绑定</h2><p>连接的是独立 iLink Bot 身份，主要用于私聊。</p><label>所属用户<select id="userId"><option value="">加载用户中…</option></select></label><div class="actions"><button id="start">申请二维码</button><button id="cancel" class="secondary" hidden>取消</button></div><img id="qr" alt="微信扫码二维码" hidden><p id="status" class="status">选择用户后申请二维码。</p></article>
+      <article id="resultCard" class="card weixin-result" hidden><h2>2. 本地 Hermes 配置</h2><p>确认后显示 <code>WEIXIN_ACCOUNT_ID</code>、<code>WEIXIN_TOKEN</code>、<code>WEIXIN_BASE_URL</code> 和扫码用户 allowlist。</p><p class="warning">WEIXIN_TOKEN 是敏感凭证，仅用于本地测试，请勿写入日志或提交 Git。</p><textarea id="dotenv" readonly placeholder="扫码确认后在这里显示 .env 内容"></textarea><div class="actions"><button id="copy" class="secondary" disabled>复制 .env</button></div><p>把内容加入 <code>~/.hermes/.env</code>，然后重启 <code>hermes gateway run</code>。</p></article>
+    </section>
+  </main>
+</div><script src="/admin/assets/common.js"></script><script>
+let attemptId="", timer=0, requestGeneration=0;
+async function cancelAttempt(){clearTimeout(timer);if(attemptId)await adminRequest(`/v1/admin/weixin/onboarding/${encodeURIComponent(attemptId)}`,{method:"DELETE"}).catch(()=>{});attemptId="";$("qr").hidden=true;$("cancel").hidden=true;}
+async function poll(seconds){if(!attemptId)return;try{const state=await adminRequest(`/v1/admin/weixin/onboarding/${encodeURIComponent(attemptId)}`);if(state.state==="connected"){const id=attemptId;const result=await adminRequest(`/v1/admin/weixin/onboarding/${encodeURIComponent(id)}/credentials`);$("dotenv").value=result.dotenv||"";$("copy").disabled=!$("dotenv").value;$("resultCard").hidden=false;showStatus($("status"),`扫码成功，Weixin Bot ${result.botId||""} 已保存，可在创建 Pod 时选择。`,true);$("qr").hidden=true;$("resultCard").scrollIntoView({behavior:"smooth",block:"start"});await adminRequest(`/v1/admin/weixin/onboarding/${encodeURIComponent(id)}`,{method:"DELETE"}).catch(()=>{});attemptId="";$("cancel").hidden=true;return}if(state.state==="expired"){await cancelAttempt();showStatus($("status"),"二维码已过期，请重新申请。");return}showStatus($("status"),state.state==="scanned"?"已扫码，请在微信中确认…":"等待扫码确认…",true)}catch(error){showStatus($("status"),`查询失败，正在重试：${error.message}`)}timer=setTimeout(()=>poll(seconds),seconds*1000)}
+$("start").onclick=async()=>{if(!$("userId").value){showStatus($("status"),"请先选择所属用户。");return}const generation=++requestGeneration;setBusy($("start"),true,"申请中…");await cancelAttempt();$("dotenv").value="";$("copy").disabled=true;$("resultCard").hidden=true;try{const result=await adminRequest("/v1/admin/weixin/onboarding",{method:"POST",body:JSON.stringify({userId:$("userId").value})});if(generation!==requestGeneration){await adminRequest(`/v1/admin/weixin/onboarding/${encodeURIComponent(result.attemptId)}`,{method:"DELETE"}).catch(()=>{});return}attemptId=result.attemptId;$("qr").src=result.qrImage;$("qr").hidden=false;$("cancel").hidden=false;showStatus($("status"),"等待扫码确认…",true);poll(Math.max(2,Number(result.intervalSeconds)||2))}catch(error){showStatus($("status"),error.message)}finally{if(generation===requestGeneration)setBusy($("start"),false)}};
+$("cancel").onclick=async()=>{await cancelAttempt();showStatus($("status"),"已取消。")};
+$("copy").onclick=async()=>{await navigator.clipboard.writeText($("dotenv").value);$("copy").textContent="已复制";setTimeout(()=>$("copy").textContent="复制 .env",1200)};
+async function loadUsers(){try{const result=await adminRequest("/v1/admin/users");$("userId").innerHTML='<option value="">请选择用户</option>'+result.items.map(user=>`<option value="${esc(user.id)}">${esc(user.name)} · ${esc(user.id)}</option>`).join("")}catch(error){$("userId").innerHTML=`<option value="">${esc(error.message)}</option>`}}loadUsers();
+</script></body></html>

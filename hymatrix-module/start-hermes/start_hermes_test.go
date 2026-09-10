@@ -84,6 +84,62 @@ func TestWriteHermesGatewayEnvRejectsNewlines(t *testing.T) {
 	}
 }
 
+func TestWriteHermesGatewayEnvConfiguresTelegramAndWeixinTogether(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HERMES_AGENT_TELEGRAM_BOT_TOKEN", "telegram-token")
+	t.Setenv("HERMES_AGENT_WEIXIN_ACCOUNT_ID", "bot@im.bot")
+	t.Setenv("HERMES_AGENT_WEIXIN_TOKEN", "weixin-token")
+	t.Setenv("HERMES_AGENT_WEIXIN_BASE_URL", "https://ilinkai.weixin.qq.com")
+	t.Setenv("HERMES_AGENT_WEIXIN_ALLOWED_USERS", "user@im.wechat")
+	if err := WriteHermesGatewayEnv(home, GatewayConfig{URL: "https://hub.example", APIKey: "gw_sk_test"}); err != nil {
+		t.Fatal(err)
+	}
+	content, err := os.ReadFile(filepath.Join(home, ".hermes", ".env"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, expected := range []string{
+		"TELEGRAM_BOT_TOKEN=telegram-token", "WEIXIN_ACCOUNT_ID=bot@im.bot",
+		"WEIXIN_TOKEN=weixin-token", "WEIXIN_BASE_URL=https://ilinkai.weixin.qq.com",
+		"WEIXIN_DM_POLICY=allowlist", "WEIXIN_ALLOWED_USERS=user@im.wechat",
+	} {
+		if !containsLine(string(content), expected) {
+			t.Errorf("missing %q in Hermes environment", expected)
+		}
+	}
+}
+
+func TestWriteHermesGatewayEnvRejectsPartialWeixinConfig(t *testing.T) {
+	t.Setenv("HERMES_AGENT_WEIXIN_TOKEN", "weixin-token")
+	if err := WriteHermesGatewayEnv(t.TempDir(), GatewayConfig{URL: "https://hub.example", APIKey: "gw_sk_test"}); err == nil {
+		t.Fatal("expected incomplete Weixin configuration error")
+	}
+}
+
+func TestWriteHermesGatewayEnvClearsUnselectedChannels(t *testing.T) {
+	home := t.TempDir()
+	directory := filepath.Join(home, ".hermes")
+	if err := os.MkdirAll(directory, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	stale := "TELEGRAM_BOT_TOKEN=old-telegram\nWEIXIN_TOKEN=old-weixin\nWEIXIN_ACCOUNT_ID=old-account\n"
+	if err := os.WriteFile(filepath.Join(directory, ".env"), []byte(stale), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteHermesGatewayEnv(home, GatewayConfig{URL: "https://hub.example", APIKey: "gw_sk_test"}); err != nil {
+		t.Fatal(err)
+	}
+	content, err := os.ReadFile(filepath.Join(directory, ".env"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, expected := range []string{"TELEGRAM_BOT_TOKEN=", "WEIXIN_TOKEN=", "WEIXIN_ACCOUNT_ID="} {
+		if !containsLine(string(content), expected) {
+			t.Errorf("managed channel value was not cleared: %q", expected)
+		}
+	}
+}
+
 func TestConfigureTelegramAutoHomeChannelInstallsPlugin(t *testing.T) {
 	home := t.TempDir()
 	if err := ConfigureTelegramAutoHomeChannel(home, "/usr/bin/true"); err != nil {

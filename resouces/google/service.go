@@ -45,7 +45,7 @@ func (s *Service) CreateAccount(ctx context.Context, email, password, givenName,
 	if err != nil {
 		return schema.GoogleAccount{}, err
 	}
-	row := schema.GoogleAccount{ID: "gusr_" + strings.ReplaceAll(uuid.NewString(), "-", "")[:16], Email: email, Password: password, GoogleUserID: googleID, Status: schema.StatusAvailable}
+	row := schema.GoogleAccount{ID: "gusr_" + strings.ReplaceAll(uuid.NewString(), "-", "")[:16], Email: email, Password: password, GoogleUserID: googleID, Status: schema.StatusAvailable, Purpose: ""}
 	if err := s.db.Create(&row).Error; err != nil {
 		return schema.GoogleAccount{}, fmt.Errorf("save google account: %w", err)
 	}
@@ -102,7 +102,7 @@ func (s *Service) CreateAccounts(ctx context.Context, count int, domain string) 
 	return created, nil
 }
 
-func (s *Service) AssignAccount(accessKeyID string) (schema.GoogleAccount, error) {
+func (s *Service) AssignAccount(accessKeyID, purpose string) (schema.GoogleAccount, error) {
 	var account schema.GoogleAccount
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		var accessKey schema.AccessKey
@@ -111,12 +111,15 @@ func (s *Service) AssignAccount(accessKeyID string) (schema.GoogleAccount, error
 		}
 		err := tx.Where("assigned_access_key_id = ?", accessKeyID).First(&account).Error
 		if err == nil {
+			if account.Purpose != purpose {
+				return fmt.Errorf("API key is already assigned a Google user with a different purpose")
+			}
 			return nil
 		}
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
 		}
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).Where("status = ?", schema.StatusAvailable).Order("created_at").First(&account).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).Where("status = ? AND purpose = ?", schema.StatusAvailable, purpose).Order("created_at").First(&account).Error; err != nil {
 			return err
 		}
 		now := time.Now()
@@ -130,10 +133,13 @@ func (s *Service) AssignAccount(accessKeyID string) (schema.GoogleAccount, error
 
 // AcquireAccount returns the account already owned by an API key, assigns one
 // from the pool, or produces exactly one account when the pool is empty.
-func (s *Service) AcquireAccount(ctx context.Context, accessKeyID string) (schema.GoogleAccount, error) {
-	account, err := s.AssignAccount(accessKeyID)
+func (s *Service) AcquireAccount(ctx context.Context, accessKeyID, purpose string) (schema.GoogleAccount, error) {
+	account, err := s.AssignAccount(accessKeyID, purpose)
 	if err == nil || !errors.Is(err, gorm.ErrRecordNotFound) {
 		return account, err
+	}
+	if purpose != "" {
+		return schema.GoogleAccount{}, err
 	}
 
 	// Only one process-local request replenishes an empty pool at a time. After
@@ -141,7 +147,7 @@ func (s *Service) AcquireAccount(ctx context.Context, accessKeyID string) (schem
 	// produced an account while this request was waiting.
 	s.createMu.Lock()
 	defer s.createMu.Unlock()
-	account, err = s.AssignAccount(accessKeyID)
+	account, err = s.AssignAccount(accessKeyID, purpose)
 	if err == nil || !errors.Is(err, gorm.ErrRecordNotFound) {
 		return account, err
 	}
@@ -151,11 +157,11 @@ func (s *Service) AcquireAccount(ctx context.Context, accessKeyID string) (schem
 	if _, err := s.CreateAccounts(ctx, 1, s.domain); err != nil {
 		return schema.GoogleAccount{}, fmt.Errorf("automatically create google account: %w", err)
 	}
-	return s.AssignAccount(accessKeyID)
+	return s.AssignAccount(accessKeyID, purpose)
 }
 
 func (s *Service) IssueToken(ctx context.Context, accessKeyID string) (*oauth2.Token, schema.GoogleAccount, error) {
-	account, err := s.AcquireAccount(ctx, accessKeyID)
+	account, err := s.AcquireAccount(ctx, accessKeyID, "")
 	if err != nil {
 		return nil, schema.GoogleAccount{}, err
 	}

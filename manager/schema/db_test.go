@@ -16,6 +16,9 @@ func TestManagerTableNames(t *testing.T) {
 	if got := (AccessKey{}).TableName(); got != "manager_access_keys" {
 		t.Fatalf("AccessKey table = %q", got)
 	}
+	if got := (MiniProgramAgentTask{}).TableName(); got != "manager_mini_program_agent_tasks" {
+		t.Fatalf("MiniProgramAgentTask table = %q", got)
+	}
 }
 
 func TestPodAccessKeyAllowsHistoricalRetries(t *testing.T) {

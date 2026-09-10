@@ -139,12 +139,27 @@ def drive_fields():
 
 def drive_list(token, _email, args):
     fields = "nextPageToken,files(" + drive_fields() + ")"
-    return api_request(token, "GET", with_query(DRIVE_API + "/files", q=args.query, pageSize=args.page_size, fields=fields))
+    return api_request(
+        token,
+        "GET",
+        with_query(
+            DRIVE_API + "/files",
+            q=args.query,
+            pageSize=args.page_size,
+            fields=fields,
+            supportsAllDrives="true",
+            includeItemsFromAllDrives="true",
+        ),
+    )
 
 
 def drive_get(token, _email, args):
     file_id = urllib.parse.quote(args.file_id, safe="")
-    return api_request(token, "GET", with_query(DRIVE_API + "/files/" + file_id, fields=drive_fields()))
+    return api_request(
+        token,
+        "GET",
+        with_query(DRIVE_API + "/files/" + file_id, fields=drive_fields(), supportsAllDrives="true"),
+    )
 
 
 def drive_share_anyone_reader(token, file):
@@ -155,7 +170,11 @@ def drive_share_anyone_reader(token, file):
     permission = api_request(
         token,
         "POST",
-        with_query(DRIVE_API + "/files/" + encoded_id + "/permissions", fields="id,type,role"),
+        with_query(
+            DRIVE_API + "/files/" + encoded_id + "/permissions",
+            fields="id,type,role",
+            supportsAllDrives="true",
+        ),
         {"type": "anyone", "role": "reader"},
     )
     result = dict(file)
@@ -171,7 +190,12 @@ def drive_create_folder(token, _email, args):
     payload = {"name": args.name, "mimeType": "application/vnd.google-apps.folder"}
     if args.parent_id:
         payload["parents"] = [args.parent_id]
-    created = api_request(token, "POST", with_query(DRIVE_API + "/files", fields=drive_fields()), payload)
+    created = api_request(
+        token,
+        "POST",
+        with_query(DRIVE_API + "/files", fields=drive_fields(), supportsAllDrives="true"),
+        payload,
+    )
     return drive_share_anyone_reader(token, created)
 
 
@@ -192,7 +216,12 @@ def drive_upload_content(token, name, content, mime_type, parent_id=""):
     if parent_id:
         metadata["parents"] = [parent_id]
     body, content_type = multipart_body(metadata, content, mime_type)
-    url = with_query("https://www.googleapis.com/upload/drive/v3/files", uploadType="multipart", fields=drive_fields())
+    url = with_query(
+        "https://www.googleapis.com/upload/drive/v3/files",
+        uploadType="multipart",
+        fields=drive_fields(),
+        supportsAllDrives="true",
+    )
     created = api_request(token, "POST", url, body, content_type)
     return drive_share_anyone_reader(token, created)
 
@@ -214,13 +243,22 @@ def drive_upload(token, _email, args):
 
 def drive_share_link(token, _email, args):
     file_id = urllib.parse.quote(args.file_id, safe="")
-    file = api_request(token, "GET", with_query(DRIVE_API + "/files/" + file_id, fields=drive_fields()))
+    file = api_request(
+        token,
+        "GET",
+        with_query(DRIVE_API + "/files/" + file_id, fields=drive_fields(), supportsAllDrives="true"),
+    )
     return drive_share_anyone_reader(token, file)
 
 
 def drive_download(token, _email, args):
     file_id = urllib.parse.quote(args.file_id, safe="")
-    content = api_request(token, "GET", with_query(DRIVE_API + "/files/" + file_id, alt="media"), raw=True)
+    content = api_request(
+        token,
+        "GET",
+        with_query(DRIVE_API + "/files/" + file_id, alt="media", supportsAllDrives="true"),
+        raw=True,
+    )
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_bytes(content)
@@ -229,7 +267,7 @@ def drive_download(token, _email, args):
 
 def drive_delete(token, _email, args):
     file_id = urllib.parse.quote(args.file_id, safe="")
-    api_request(token, "DELETE", DRIVE_API + "/files/" + file_id)
+    api_request(token, "DELETE", with_query(DRIVE_API + "/files/" + file_id, supportsAllDrives="true"))
     return {"fileId": args.file_id, "deleted": True}
 
 

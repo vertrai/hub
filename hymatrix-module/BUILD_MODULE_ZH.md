@@ -372,7 +372,7 @@ HERMES_GATEWAY_TOKEN（与 API_SERVER_KEY 相同）
 
 无需再发送单独的 Start 交易。
 
-> 安全提示：`Container-Env-*` Tags 不加密，密钥会对交易处理节点可见。仅在可信 Hymatrix 网络中使用。
+> 安全提示：Manager 将 API Key、Bot Token 等敏感值通过 Hymatrix SDK encrypted tags 发送；VMM 解密后注入容器。不要把敏感值放入普通 `Container-Env-*` Tags，也不要在日志或交易预览中显示明文。
 
 ## 10. 修改 Skills 或 start-hermes 后重新生成
 
