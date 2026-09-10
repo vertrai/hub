@@ -42,6 +42,16 @@ func TestDesignateReusesExistingGoogleUser(t *testing.T) {
 	if xbox.ID != google.ID || xbox.Email != google.Email || xbox.Password != google.Password || xbox.Purpose != schema.GooglePurposeXbox {
 		t.Fatalf("designated=%#v original=%#v", xbox, google)
 	}
+	if xbox.XboxStatus != schema.XboxStatusWaiting {
+		t.Fatalf("xbox status=%q", xbox.XboxStatus)
+	}
+	if err := db.Create(&schema.AccessKey{ID: "key_waiting", OwnerUserID: "owner", KeyHash: "hash_waiting", KeyPrefix: "gw", Status: schema.StatusActive}).Error; err != nil {
+		t.Fatal(err)
+	}
+	googleService := resourcegoogle.NewService(db, nil, nil, "")
+	if _, err := googleService.AssignAccount("key_waiting", schema.GooglePurposeXbox); !errors.Is(err, gorm.ErrRecordNotFound) {
+		t.Fatalf("waiting Xbox user was allocatable: %v", err)
+	}
 	if _, err := service.Designate(google.ID); err == nil {
 		t.Fatal("already designated user should not be designated twice")
 	}
@@ -58,7 +68,11 @@ func TestAcquireIsIdempotentAndExclusivePerAccessKey(t *testing.T) {
 	}
 	for _, suffix := range []string{"one", "two"} {
 		google := addGoogleUser(t, db, suffix)
-		if _, err := service.Designate(google.ID); err != nil {
+		designated, err := service.Designate(google.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := service.MarkReady(designated.ID); err != nil {
 			t.Fatal(err)
 		}
 	}

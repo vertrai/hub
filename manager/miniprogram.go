@@ -26,6 +26,37 @@ import (
 
 const miniProgramSessionLifetime = 30 * 24 * time.Hour
 
+const (
+	miniProgramTemplateTax   = "tax-agent"
+	miniProgramTemplateMicAI = "micai-agent"
+)
+
+func normalizeMiniProgramTemplate(value string) (string, error) {
+	template := strings.TrimSpace(value)
+	if template != miniProgramTemplateTax && template != miniProgramTemplateMicAI {
+		return "", errors.New("unsupported agent template")
+	}
+	return template, nil
+}
+
+func miniProgramModuleForTemplate(cfg MiniProgramConfig, template string) string {
+	modules := map[string]string{
+		miniProgramTemplateTax:   cfg.TaxModule,
+		miniProgramTemplateMicAI: cfg.MicAIModule,
+	}
+	return strings.TrimSpace(modules[template])
+}
+
+func validateMiniProgramTemplateConfig(cfg MiniProgramConfig, template string) error {
+	if miniProgramModuleForTemplate(cfg, template) == "" {
+		if template == miniProgramTemplateMicAI {
+			return errors.New("miniProgram.pod.micaiModule is not configured")
+		}
+		return errors.New("miniProgram.pod.taxModule is not configured")
+	}
+	return nil
+}
+
 func (m *Manager) loginMiniProgramUser(c *gin.Context) {
 	if m.wdb == nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "manager database is unavailable"})
@@ -78,8 +109,13 @@ func (m *Manager) spawnMiniProgramAgent(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
-	if input.Template != "" && input.Template != "hermes" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported agent template"})
+	template, err := normalizeMiniProgramTemplate(input.Template)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := validateMiniProgramTemplateConfig(m.config.MiniProgram, template); err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": err.Error()})
 		return
 	}
 	_, tokenHash, err := newMiniProgramTaskToken()
@@ -87,21 +123,21 @@ func (m *Manager) spawnMiniProgramAgent(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "create task token"})
 		return
 	}
-	task := schema.MiniProgramAgentTask{ID: "mpt_" + strings.ReplaceAll(uuid.NewString(), "-", ""), UserID: userID, TokenHash: tokenHash, Status: schema.MiniProgramTaskSpawning}
+	task := schema.MiniProgramAgentTask{ID: "mpt_" + strings.ReplaceAll(uuid.NewString(), "-", ""), UserID: userID, Template: template, TokenHash: tokenHash, Status: schema.MiniProgramTaskSpawning}
 	err = m.wdb.Db.Transaction(func(tx *gorm.DB) error {
 		var lockedUser schema.User
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&lockedUser, "id = ?", userID).Error; err != nil {
 			return err
 		}
 		var activeTasks int64
-		if err := tx.Model(&schema.MiniProgramAgentTask{}).Where("user_id = ? AND (pod_id <> '' OR status = ?)", userID, schema.MiniProgramTaskSpawning).Count(&activeTasks).Error; err != nil {
+		if err := tx.Model(&schema.MiniProgramAgentTask{}).Where("user_id = ? AND template = ? AND (pod_id <> '' OR status = ?)", userID, template, schema.MiniProgramTaskSpawning).Count(&activeTasks).Error; err != nil {
 			return err
 		}
 		if activeTasks > 0 {
 			return errMiniProgramAgentAlreadyActive
 		}
 		var recentAttempts int64
-		if err := tx.Model(&schema.MiniProgramAgentTask{}).Where("user_id = ? AND created_at >= ?", userID, time.Now().UTC().Add(-time.Hour)).Count(&recentAttempts).Error; err != nil {
+		if err := tx.Model(&schema.MiniProgramAgentTask{}).Where("user_id = ? AND template = ? AND created_at >= ?", userID, template, time.Now().UTC().Add(-time.Hour)).Count(&recentAttempts).Error; err != nil {
 			return err
 		}
 		if recentAttempts >= 3 {
@@ -185,8 +221,13 @@ func (m *Manager) getCurrentMiniProgramAgent(c *gin.Context) {
 	if !ok {
 		return
 	}
+	template, err := normalizeMiniProgramTemplate(c.Query("template"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 	var task schema.MiniProgramAgentTask
-	err := m.wdb.Db.Where("user_id = ?", userID).Order("created_at desc").First(&task).Error
+	err = m.wdb.Db.Where("user_id = ? AND template = ?", userID, template).Order("created_at desc").First(&task).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		c.Header("Cache-Control", "no-store")
 		c.JSON(http.StatusOK, gin.H{"task": nil})
@@ -339,17 +380,33 @@ func (m *Manager) provisionMiniProgramPod(ctx context.Context, task *schema.Mini
 	if err := m.wdb.Db.Create(&accessKey).Error; err != nil {
 		return fmt.Errorf("store gateway access key: %w", err)
 	}
+	// Allocate before creating the Pod so both mini-program templates have a
+	// usable relay configuration before the user proceeds to Weixin binding.
+	resource, err := m.hermesLLMResource(ctx, accessKey.Secret, "hub-chat")
+	if err != nil {
+		return fmt.Errorf("allocate LLM resource: %w", err)
+	}
 	cfg := m.config.MiniProgram
+	module := miniProgramModuleForTemplate(cfg, task.Template)
+	if module == "" {
+		return fmt.Errorf("module is not configured for template %q", task.Template)
+	}
 	nodeInfo, err := fetchHymatrixNodeInfo(ctx, cfg.NodeURL)
 	if err != nil {
 		return err
 	}
-	hymatrixConfig := HymatrixConfig{NodeURL: cfg.NodeURL, PrivateKey: cfg.PrivateKey, Module: cfg.Module, Scheduler: strings.TrimSpace(nodeInfo.Node.AccountID)}
+	hymatrixConfig := HymatrixConfig{NodeURL: cfg.NodeURL, PrivateKey: cfg.PrivateKey, Module: module, Scheduler: strings.TrimSpace(nodeInfo.Node.AccountID)}
 	client, err := NewHymatrixClient(hymatrixConfig)
 	if err != nil {
 		return err
 	}
-	pod := schema.HymatrixPod{ID: "pod_" + strings.ReplaceAll(uuid.NewString(), "-", ""), UserID: task.UserID, Name: "财税助手", RuntimeType: cfg.RuntimeType, Status: schema.PodStatusSpawning, NodeURL: cfg.NodeURL, AdminURL: cfg.AdminURL, PrivateKey: cfg.PrivateKey, Module: cfg.Module, Scheduler: hymatrixConfig.Scheduler, AccessKeyID: accessKey.ID}
+	podName := "财税助手"
+	if task.Template == miniProgramTemplateMicAI {
+		podName = "MicAI Minecraft 助手"
+	}
+	pod := schema.HymatrixPod{ID: "pod_" + strings.ReplaceAll(uuid.NewString(), "-", ""), UserID: task.UserID, Name: podName, RuntimeType: cfg.RuntimeType, Status: schema.PodStatusSpawning, NodeURL: cfg.NodeURL, AdminURL: cfg.AdminURL, PrivateKey: cfg.PrivateKey, Module: module, Scheduler: hymatrixConfig.Scheduler, AccessKeyID: accessKey.ID}
+	pod.GatewayAPIKey = accessKey.Secret
+	pod.LLMAPIKey, pod.LLMBaseURL, pod.LLMModel, pod.LLMProvider = resource.APIKey, resource.BaseURL, resource.Model, resource.Provider
 	pod.PID = "pending_" + pod.ID
 	if err := m.wdb.Db.Create(&pod).Error; err != nil {
 		return err
@@ -379,6 +436,12 @@ func (m *Manager) startMiniProgramPod(ctx context.Context, task *schema.MiniProg
 	if err := m.wdb.Db.First(&bot, "id = ? AND user_id = ? AND status = ?", weixinBotID, task.UserID, schema.WeixinBotStatusAvailable).Error; err != nil {
 		return fmt.Errorf("load available Weixin bot: %w", err)
 	}
+	// Reacquisition returns the same key and checks current policy/revocation.
+	// This also supports Pods created before allocation moved to provisioning.
+	resource, err := m.hermesLLMResource(ctx, accessKey.Secret, "hub-chat")
+	if err != nil {
+		return fmt.Errorf("allocate LLM resource: %w", err)
+	}
 	if err := m.wdb.Db.Transaction(func(tx *gorm.DB) error {
 		if result := tx.Model(&schema.HymatrixPod{}).Where("id = ? AND status = ?", pod.ID, schema.PodStatusSpawned).Update("status", schema.PodStatusStarting); result.Error != nil || result.RowsAffected != 1 {
 			return fmt.Errorf("pod is not available to start")
@@ -394,7 +457,7 @@ func (m *Manager) startMiniProgramPod(ctx context.Context, task *schema.MiniProg
 		return err
 	}
 	cfg := m.config.MiniProgram
-	client, err := NewHymatrixClient(HymatrixConfig{NodeURL: pod.NodeURL, PrivateKey: pod.PrivateKey, Module: pod.Module, Scheduler: pod.Scheduler, LLMAPIKey: cfg.LLMAPIKey, LLMBaseURL: cfg.LLMBaseURL, LLMModel: cfg.LLMModel, LLMProvider: cfg.LLMProvider})
+	client, err := NewHymatrixClient(HymatrixConfig{NodeURL: pod.NodeURL, PrivateKey: pod.PrivateKey, Module: pod.Module, Scheduler: pod.Scheduler, LLMAPIKey: resource.APIKey, LLMBaseURL: resource.BaseURL, LLMModel: resource.Model, LLMProvider: resource.Provider})
 	if err == nil {
 		err = client.StartAgent(ctx, pod.PID, PodStartInput{GatewayURL: cfg.GatewayURL, GatewayAPIKey: accessKey.Secret, HermesGatewayToken: cfg.HermesGatewayToken, WeixinAccountID: bot.AccountID, WeixinToken: bot.Token, WeixinBaseURL: bot.BaseURL, WeixinAllowedUsers: bot.AllowedUserID})
 	}
@@ -407,7 +470,7 @@ func (m *Manager) startMiniProgramPod(ctx context.Context, task *schema.MiniProg
 		return err
 	}
 	pod.Status, pod.Error, pod.WeixinBotID = schema.PodStatusRunning, "", bot.ID
-	pod.GatewayAPIKey, pod.LLMAPIKey, pod.LLMBaseURL, pod.LLMModel, pod.LLMProvider = accessKey.Secret, cfg.LLMAPIKey, cfg.LLMBaseURL, cfg.LLMModel, cfg.LLMProvider
+	pod.GatewayAPIKey, pod.LLMAPIKey, pod.LLMBaseURL, pod.LLMModel, pod.LLMProvider = accessKey.Secret, resource.APIKey, resource.BaseURL, resource.Model, resource.Provider
 	return m.wdb.Db.Save(&pod).Error
 }
 
@@ -433,7 +496,7 @@ func (m *Manager) exchangeMiniProgramCode(ctx context.Context, code string) (str
 }
 
 func validateMiniProgramConfig(cfg MiniProgramConfig) error {
-	values := map[string]string{"appId": cfg.AppID, "appSecret": cfg.AppSecret, "pod.nodeURL": cfg.NodeURL, "pod.privateKey": cfg.PrivateKey, "pod.module": cfg.Module, "pod.runtimeType": cfg.RuntimeType, "agent.gatewayURL": cfg.GatewayURL, "agent.hermesGatewayToken": cfg.HermesGatewayToken, "agent.llm.apiKey": cfg.LLMAPIKey, "agent.llm.model": cfg.LLMModel}
+	values := map[string]string{"appId": cfg.AppID, "appSecret": cfg.AppSecret, "pod.nodeURL": cfg.NodeURL, "pod.privateKey": cfg.PrivateKey, "pod.taxModule": cfg.TaxModule, "pod.micaiModule": cfg.MicAIModule, "pod.runtimeType": cfg.RuntimeType, "agent.gatewayURL": cfg.GatewayURL, "agent.hermesGatewayToken": cfg.HermesGatewayToken}
 	for name, value := range values {
 		if strings.TrimSpace(value) == "" {
 			return fmt.Errorf("miniProgram.%s is not configured", name)
@@ -441,6 +504,9 @@ func validateMiniProgramConfig(cfg MiniProgramConfig) error {
 	}
 	if cfg.WeixinAPIBase == "" {
 		return fmt.Errorf("miniProgram.weixinAPIBase is not configured")
+	}
+	if cfg.RuntimeType != "hermes" {
+		return fmt.Errorf("miniProgram.pod.runtimeType must be hermes")
 	}
 	return nil
 }
@@ -535,7 +601,7 @@ func (m *Manager) miniProgramTaskResponse(task schema.MiniProgramAgentTask, toke
 			runtimeType = pod.RuntimeType
 		}
 	}
-	result := gin.H{"taskId": task.ID, "status": task.Status, "podId": task.PodID, "runtimeType": runtimeType, "createdAt": task.CreatedAt, "error": task.Error}
+	result := gin.H{"taskId": task.ID, "template": task.Template, "status": task.Status, "podId": task.PodID, "runtimeType": runtimeType, "createdAt": task.CreatedAt, "error": task.Error}
 	if task.QRCodeData != "" {
 		result["qrCodeUrl"] = task.QRCodeData
 		if !task.QRExpiresAt.IsZero() {

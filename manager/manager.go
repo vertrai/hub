@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/vertrai/hub/common"
+	"github.com/vertrai/hub/manager/llm"
 )
 
 var log = common.NewLog("manager")
@@ -21,12 +22,11 @@ type Config struct {
 }
 
 type MiniProgramConfig struct {
-	AppID, AppSecret, WeixinAPIBase       string
-	NodeURL, AdminURL, PrivateKey, Module string
-	RuntimeType, GatewayURL               string
-	HermesGatewayToken                    string
-	LLMAPIKey, LLMBaseURL                 string
-	LLMModel, LLMProvider                 string
+	AppID, AppSecret, WeixinAPIBase string
+	NodeURL, AdminURL, PrivateKey   string
+	TaxModule, MicAIModule          string
+	RuntimeType, GatewayURL         string
+	HermesGatewayToken              string
 }
 
 type AdminGoogleConfig struct {
@@ -44,6 +44,12 @@ type ResourcesConfig struct {
 }
 
 type Manager struct {
+	llmOAuthMu            sync.Mutex
+	llmOAuthSessions      map[string]*llmOAuthSession
+	codexOAuth            *llm.DeviceOAuthClient
+	llmMu                 sync.Mutex
+	llmClient             *http.Client
+	codex                 *llm.CodexAdapter
 	env                   string
 	config                Config
 	wdb                   *Wdb
@@ -78,6 +84,10 @@ func New(env string, config Config, wdb *Wdb) (*Manager, error) {
 	}
 	return &Manager{
 		env: env, config: config, wdb: wdb, resources: NewResourcesClient(config.Resources),
+		llmOAuthSessions:      make(map[string]*llmOAuthSession),
+		codexOAuth:            llm.NewDeviceOAuthClient(&http.Client{Timeout: 30 * time.Second, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}),
+		llmClient:             newLLMClient(),
+		codex:                 llm.NewCodexAdapter(newLLMClient()),
 		weixinAttempts:        make(map[string]weixinAttempt),
 		weixinBaseURL:         "https://ilinkai.weixin.qq.com",
 		weixinClient:          &http.Client{Timeout: 15 * time.Second},

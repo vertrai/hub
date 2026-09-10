@@ -119,7 +119,11 @@ func (s *Service) AssignAccount(accessKeyID, purpose string) (schema.GoogleAccou
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
 		}
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).Where("status = ? AND purpose = ?", schema.StatusAvailable, purpose).Order("created_at").First(&account).Error; err != nil {
+		query := tx.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).Where("status = ? AND purpose = ?", schema.StatusAvailable, purpose)
+		if purpose == schema.GooglePurposeXbox {
+			query = query.Where("xbox_status = ?", schema.XboxStatusReady)
+		}
+		if err := query.Order("created_at").First(&account).Error; err != nil {
 			return err
 		}
 		now := time.Now()
@@ -161,7 +165,11 @@ func (s *Service) AcquireAccount(ctx context.Context, accessKeyID, purpose strin
 }
 
 func (s *Service) IssueToken(ctx context.Context, accessKeyID string) (*oauth2.Token, schema.GoogleAccount, error) {
-	account, err := s.AcquireAccount(ctx, accessKeyID, "")
+	var account schema.GoogleAccount
+	err := s.db.Where("assigned_access_key_id = ?", accessKeyID).First(&account).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		account, err = s.AcquireAccount(ctx, accessKeyID, "")
+	}
 	if err != nil {
 		return nil, schema.GoogleAccount{}, err
 	}

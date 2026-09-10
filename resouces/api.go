@@ -43,6 +43,7 @@ func (g *Resouces) router() *gin.Engine {
 	admin.GET("/google/accounts", g.listGoogleAccounts)
 	admin.POST("/xbox/bots", g.createXBot)
 	admin.GET("/xbox/bots", g.listXBots)
+	admin.PATCH("/xbox/bots/:id/ready", g.markXBotReady)
 	admin.GET("/browser/sessions", g.listBrowserSessions)
 	admin.POST("/browser/sessions/:id/close", g.closeBrowserSessionAdmin)
 	admin.POST("/telegram/bots", g.importTelegramBot)
@@ -54,6 +55,11 @@ func (g *Resouces) router() *gin.Engine {
 	admin.GET("/telegram/auth/status", g.telegramAuthStatus)
 	admin.GET("/telegram/auth/accounts", g.listTelegramAccounts)
 	user := r.Group("/v1", g.requireGatewayAPIKey)
+	user.GET("/access-key", func(c *gin.Context) {
+		key := mustGatewayPrincipal(c).AccessKey
+		c.Header("Cache-Control", "no-store")
+		c.JSON(200, gin.H{"accessKey": gin.H{"id": key.ID, "ownerUserId": key.OwnerUserID, "status": key.Status}})
+	})
 	user.GET("/google-user", g.requireResourceScope(resourceScopeGoogle), g.getGoogleUser)
 	user.GET("/google-user/access-token", g.requireResourceScope(resourceScopeGoogle), g.issueGoogleToken)
 	user.POST("/google-user/test/gmail/send", g.requireResourceScope(resourceScopeGoogle), g.testSendGmail)
@@ -92,6 +98,19 @@ func (g *Resouces) listXBots(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"items": rows})
+}
+
+func (g *Resouces) markXBotReady(c *gin.Context) {
+	bot, err := g.xbot.MarkReady(c.Param("id"))
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Google user not found"})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"bot": bot})
 }
 
 func (g *Resouces) listBrowserSessions(c *gin.Context) {

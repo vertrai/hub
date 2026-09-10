@@ -628,20 +628,7 @@
         <div class="brand">
           <span>AGENT RUNTIME CONTROL</span><b>Agent Runtime Hub</b>
         </div>
-        <nav class="nav">
-          <small>MANAGER</small><a href="/admin">管理总览</a
-          ><a href="/admin/users">用户与密钥</a
-          ><a class="active" href="/admin/hymatrix">Hymatrix Pods</a>
-          <a href="/admin/hymatrix/eval">Eval 测试台</a>
-          <a href="/admin/hymatrix/weixin-reset">重置微信连接</a>
-          <div class="divider"></div>
-          <small>RESOURCES</small><a href="/admin/google">Google 资源池</a
-          ><a href="/admin/browser">Browser 资源池</a
-          ><a href="/admin/xbot">Xbox Bot 资源池</a
-          ><a href="/admin/telegram">Telegram 资源池</a
-          ><a href="/admin/weixin">Weixin 扫码测试</a
-          ><a href="/admin/test">资源 API 测试</a>
-        </nav>
+        <!-- admin-navigation -->
       </aside>
       <main class="content">
         <header class="page-head">
@@ -823,8 +810,10 @@
           <label class="wide">Hermes API Server Key 🔒<span class="inline-control"><input id="hermesGatewayToken" type="password" required /><button id="generateHermesKey" type="button" class="secondary">重新生成</button></span></label>
         </div></fieldset>
         <fieldset class="start-section"><legend>模型配置<span>设置 Hermes Agent 的推理服务</span></legend><div class="form-grid">
-          <label>Provider<input id="llmProvider" required value="custom" /></label><label>Model<input id="llmModel" required value="deepseek-chat" /></label>
-          <label class="wide">Base URL<input id="llmBaseUrl" type="url" required value="https://api.deepseek.com" /></label><label class="wide">LLM API Key 🔒<input id="llmApiKey" type="password" required placeholder="sk-..." /></label>
+          <div class="wide"><a href="/admin/llm" target="_blank" rel="noopener">配置 Hub LLM 中转站</a><p>使用中转站时：Provider 填 custom，Base URL 填 Hub 地址 + /llm/v1，Model 填 Provider ID/模型名，API Key 填中转密钥。</p></div>
+          <div class="wide"><label><input id="useHubLLM" type="checkbox" checked> 使用所选 Hub API Key 的 LLM 资源</label><button id="acquireLLM" type="button" class="secondary">从 Hub 领取模型配置</button><small id="llmResourceHint">使用 hub-chat 跟随后台为该 Key 设置的默认模型；也可显式选择允许的模型。</small></div>
+          <label>Provider<input id="llmProvider" required value="custom" /></label><label>Model<input id="llmModel" list="hubLLMModels" required value="hub-chat" /></label>
+          <label class="wide">Base URL<input id="llmBaseUrl" type="url" required value="https://api.deepseek.com" /></label><datalist id="hubLLMModels"></datalist><label class="wide">LLM API Key 🔒<input id="llmApiKey" type="password" required placeholder="sk-..." /></label>
         </div></fieldset></div>
         <aside class="start-preview"><div class="start-preview-head"><h3>启动摘要</h3><p>敏感值已隐藏，发送前请确认目标与运行参数。</p></div><div id="startAgentPreview" class="tx-body"></div></aside></div>
         <div class="start-agent-footer"><span id="startAgentStatus" class="status"></span><div class="actions"><button id="cancelStartAgent" type="button" class="secondary">取消</button><button id="sendStartAgent" type="submit">启动 Agent</button></div></div>
@@ -1523,7 +1512,7 @@
             weixinBotId: $("enableWeixin").checked ? $("weixinBotId").value : "",
             gatewayUrl: $("gatewayUrl").value.trim(),
             hermesGatewayToken: $("hermesGatewayToken").value.trim(),
-            llm: {apiKey: $("llmApiKey").value.trim(), baseUrl: $("llmBaseUrl").value.trim(), model: $("llmModel").value.trim(), provider: $("llmProvider").value.trim()},
+            llm: {useHub: $("useHubLLM").checked, apiKey: $("llmApiKey").value.trim(), baseUrl: $("llmBaseUrl").value.trim(), model: $("llmModel").value.trim(), provider: $("llmProvider").value.trim()},
           })});
           showStatus($("startAgentStatus"), "Start-Agent 交易已完成", true);
           $("startAgentDialog").close();
@@ -1577,6 +1566,30 @@
           renderTxPreview();
         }
       };
-    </script>
+
+      function syncHubLLMMode() {
+        const useHub=$("useHubLLM").checked;
+        for (const id of ["llmProvider","llmBaseUrl","llmApiKey"]) {$(id).disabled=useHub;$(id).required=!useHub;}
+        $("acquireLLM").disabled=!useHub;
+        if(useHub) {$("llmProvider").value="custom";$("llmModel").value="hub-chat";}
+      }
+      $("useHubLLM").onchange=syncHubLLMMode;
+      $("acquireLLM").onclick=async()=>{
+        const accessKeyId=$("accessKeyId").value;
+        if(!accessKeyId){$("llmResourceHint").textContent="请先选择 Hub API Key";return;}
+        setBusy($("acquireLLM"),true);
+        try {
+          const resource=await adminRequest(`/v1/admin/access-keys/${encodeURIComponent(accessKeyId)}/llm`,{method:"POST"});
+          if($("accessKeyId").value!==accessKeyId)return;
+          $("llmProvider").value=resource.provider;$("llmBaseUrl").value=resource.baseUrl;$("llmApiKey").value=resource.apiKey;$("llmModel").value=resource.model;
+          $("hubLLMModels").innerHTML='<option value="hub-chat"></option>'+resource.models.map(m=>`<option value="${esc(m.id)}">${esc(m.name)}</option>`).join('');
+          $("llmResourceHint").textContent=`已领取；默认路由：${resource.defaultModel}，可用模型 ${resource.models.length} 个。`;
+        }catch(e){$("llmResourceHint").textContent=e.message;}finally{setBusy($("acquireLLM"),false);}
+      };
+      $("accessKeyId").addEventListener("change",()=>{
+        if($("useHubLLM").checked){$("llmApiKey").value="";$("llmBaseUrl").value="";$("llmModel").value="hub-chat";$("hubLLMModels").innerHTML="";$("llmResourceHint").textContent="已切换 Hub API Key，启动时将重新领取此 Key 的模型配置。";}
+      });
+      syncHubLLMMode();
+</script>
   </body>
 </html>

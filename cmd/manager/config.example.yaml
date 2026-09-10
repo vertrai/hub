@@ -31,13 +31,11 @@ miniProgram:
     nodeURL: https://your-hymatrix-node.example
     adminURL: http://your-hymatrix-node.example:9091
     privateKey: ""
-    module: ""
+    taxModule: ""
+    # MicAI Minecraft Agent 的独立 Hymatrix Module ID。
+    micaiModule: ""
     runtimeType: hermes
   agent:
     gatewayURL: https://your-manager.example
     hermesGatewayToken: ""
-    llm:
-      provider: custom
-      baseURL: https://api.deepseek.com
-      model: deepseek-chat
-      apiKey: ""
+    # LLM 配置通过此 Agent 的 Hub API Key 自动申请，在 /admin/llm 设置默认模型。

@@ -103,6 +103,7 @@ func (WeixinBot) TableName() string { return "manager_weixin_bots" }
 type MiniProgramAgentTask struct {
 	ID              string    `gorm:"primaryKey;size:80" json:"taskId"`
 	UserID          string    `gorm:"size:80;not null;index" json:"-"`
+	Template        string    `gorm:"size:64;not null;default:tax-agent;index" json:"template"`
 	PodID           string    `gorm:"size:80;index" json:"podId,omitempty"`
 	WeixinAttemptID string    `gorm:"size:80" json:"-"`
 	TokenHash       string    `gorm:"size:64;not null" json:"-"`

@@ -7,7 +7,9 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -167,7 +169,7 @@ func adminCookie(value string, secure bool, maxAge int) *http.Cookie {
 	return &http.Cookie{Name: adminSessionCookie, Value: value, Path: "/", HttpOnly: true, Secure: secure, SameSite: http.SameSiteLaxMode, MaxAge: maxAge}
 }
 func (m *Manager) adminAuthInfo(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"googleClientId": m.adminAuth.clientID})
+	c.JSON(http.StatusOK, gin.H{"googleClientId": m.adminAuth.clientID, "localBypass": m.localAdminRequest(c.Request)})
 }
 
 func (m *Manager) adminGoogleLogin(c *gin.Context) {
@@ -196,7 +198,46 @@ func (m *Manager) adminGoogleLogin(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"user": identity, "redirect": "/admin"})
 }
 
+// localAdminRequest permits direct loopback development access only. Host
+// alone is insufficient: remote clients can choose their Host header.
+func (m *Manager) localAdminRequest(r *http.Request) bool {
+	if m.env != "local" {
+		return false
+	}
+	host := r.Host
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	if host != "127.0.0.1" {
+		return false
+	}
+	peer, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil || !net.ParseIP(peer).IsLoopback() {
+		return false
+	}
+	// A local reverse proxy must not turn a remote request into local access.
+	for _, header := range []string{"Forwarded", "X-Forwarded-For", "X-Forwarded-Host", "X-Forwarded-Proto", "X-Real-IP"} {
+		if len(r.Header.Values(header)) > 0 {
+			return false
+		}
+	}
+	if r.Header.Get("Sec-Fetch-Site") == "cross-site" {
+		return false
+	}
+	if origin := r.Header.Get("Origin"); origin != "" {
+		u, err := url.Parse(origin)
+		if err != nil || u.Host != r.Host || (u.Scheme != "http" && u.Scheme != "https") {
+			return false
+		}
+	}
+	return true
+}
+
 func (m *Manager) currentAdmin(c *gin.Context) (adminIdentity, bool) {
+	if m.localAdminRequest(c.Request) {
+		return adminIdentity{Subject: "local-development", Email: "local-admin@localhost", Name: "本地测试管理员"}, true
+	}
+
 	cookie, err := c.Request.Cookie(adminSessionCookie)
 	if err != nil || cookie.Value == "" {
 		return adminIdentity{}, false

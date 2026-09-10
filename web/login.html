@@ -62,6 +62,7 @@
     async function renderGoogleButton(retry=0){
       try{
         const response=await fetch("/v1/admin/auth/info");if(!response.ok)throw new Error();const info=await response.json();
+        if(info.localBypass){location.replace("/admin");return}
         if(!info.googleClientId){showError("登录服务未配置","缺少 Google Client ID，请检查 manager 认证配置。");return}
         if(!window.google?.accounts?.id){if(retry>80){showError("Google 登录不可用","登录组件加载失败，请检查网络后刷新页面。");return}setTimeout(()=>renderGoogleButton(retry+1),100);return}
         const buttonZone=document.getElementById("googleButton"),buttonWidth=Math.min(320,Math.floor(buttonZone.getBoundingClientRect().width));

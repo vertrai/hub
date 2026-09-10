@@ -232,18 +232,7 @@
         <div class="brand">
           <span>AGENT RUNTIME CONTROL</span><b>Agent Runtime Hub</b>
         </div>
-        <nav class="nav">
-          <small>MANAGER</small><a href="/admin">管理总览</a
-          ><a class="active" href="/admin/users">用户与密钥</a
-          ><a href="/admin/hymatrix">Hymatrix Pods</a>
-          <div class="divider"></div>
-          <small>RESOURCES</small><a href="/admin/google">Google 资源池</a
-          ><a href="/admin/browser">Browser 资源池</a
-          ><a href="/admin/xbot">Xbox Bot 资源池</a
-          ><a href="/admin/telegram">Telegram 资源池</a
-          ><a href="/admin/weixin">Weixin 扫码测试</a
-          ><a href="/admin/test">资源 API 测试</a>
-        </nav>
+        <!-- admin-navigation -->
       </aside>
       <main class="content">
         <header class="page-head">
@@ -254,7 +243,7 @@
           </div>
         </header>
         <section class="grid">
-          <article class="card">
+          <article class="card wide">
             <h2>签发 Gateway API Key</h2>
             <p style="margin-bottom: 16px">
               填写已有用户 ID 可追加一把 Key；填写新的用户 ID 会同时创建用户。
@@ -332,15 +321,9 @@
                 </button>
               </div>
             </div>
+            <details class="delivery-help"><summary>密钥交付与权限说明</summary><p>完整 API Key 仅在签发成功后显示一次。资源权限可在签发后调整；关闭权限会立即阻止对应 API，但不会删除已分配资源。</p></details>
           </article>
-          <article class="card">
-            <h2>权限与交付</h2>
-            <p>
-              完整 API Key
-              仅在签发成功后显示一次。资源权限可在签发后调整；关闭权限会立即阻止对应
-              API，但不会删除已经分配的资源。
-            </p>
-          </article>
+
           <article class="card wide">
             <div class="page-head">
               <div>

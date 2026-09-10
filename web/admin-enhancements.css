@@ -65,3 +65,82 @@
     letter-spacing: 0.1em;
   }
 }
+
+/* Shared admin workspace: quiet chrome, compact controls, readable resource data. */
+body.admin-workspace{--canvas:#f5f7fa;--ink:#223047;--muted:#728096;--line:#e3e8ef;--blue:#2865c7;--cyan:#2865c7;font-size:14px}
+.admin-workspace .shell{grid-template-columns:216px minmax(0,1fr)}
+.admin-workspace .side{padding:26px 14px;background:#fbfcfe}
+.admin-workspace .brand{padding:0 12px 22px}
+.admin-workspace .brand b{font-size:16px;margin-top:5px}
+.admin-workspace .brand span{font-size:9px;letter-spacing:.06em;color:#8693a5}
+.admin-workspace .nav{gap:3px;margin-top:16px}
+.admin-workspace .nav small{padding:16px 12px 7px;color:#8995a5;font:600 10px/1.3 "Avenir Next","Segoe UI",sans-serif;letter-spacing:.08em}
+.admin-workspace .nav a{position:relative;font-size:13px;font-weight:500;padding:10px 12px;border-radius:7px;color:#536279}
+.admin-workspace .nav a:hover{background:#f0f3f8}
+.admin-workspace .nav a.active{background:#eaf1fc;color:#205cae;font-weight:700}
+.admin-workspace .nav a.active:before{content:"";position:absolute;left:0;top:10px;bottom:10px;width:3px;background:#2865c7;border-radius:3px}
+.admin-workspace .nav .divider{margin:10px 12px}
+.admin-workspace .content{width:min(1440px,calc(100% - 64px));padding:30px 0 50px}
+.admin-workspace .content>.page-head{padding-bottom:22px;border-bottom:1px solid var(--line);align-items:center;margin-bottom:24px}
+.admin-workspace h1{font-size:29px;letter-spacing:-.025em;line-height:1.25;margin:4px 0 8px}
+.admin-workspace h2{font-size:17px;line-height:1.4}
+.admin-workspace .eyebrow{font-size:10px;font-weight:600;color:#8390a2;letter-spacing:.06em}
+.admin-workspace p{font-size:13px;line-height:1.65}
+.admin-workspace .card{border-radius:12px;box-shadow:0 2px 6px #23334e03;padding:22px}
+.admin-workspace .card>.page-head{align-items:center;gap:16px;margin-bottom:18px}
+.admin-workspace .card>h2{margin-bottom:12px}
+.admin-workspace .card>p+form,.admin-workspace .card>h2+form{margin-top:18px}
+.admin-workspace .grid{gap:20px}
+.admin-workspace label{font-size:12px;font-weight:600;align-content:start}
+.admin-workspace input,.admin-workspace select,.admin-workspace textarea{font-size:13px;font-weight:400;line-height:1.5;border-color:#d4dce7;border-radius:7px;padding:10px 12px}
+.admin-workspace input[type=checkbox],.admin-workspace input[type=radio]{accent-color:var(--blue)}
+.admin-workspace button,.admin-workspace .button{font-family:inherit;font-size:13px;font-weight:600;line-height:1.4;border-radius:7px;padding:9px 13px;min-height:36px}
+.admin-workspace button.secondary,.admin-workspace .button.secondary{border-color:#d7dfe9;color:#526179}
+.admin-workspace button:disabled{cursor:not-allowed;opacity:.45}
+.admin-workspace a:not(.button){color:#2865c7;text-decoration:none}
+.admin-workspace a:not(.button):hover{text-decoration:underline}
+.admin-workspace .nav a:hover{text-decoration:none}
+.admin-workspace .metric{border-left:1px solid var(--line)}
+.admin-workspace .metric strong{font:600 32px/1.2 "Avenir Next","Segoe UI",sans-serif;margin:16px 0}
+.admin-workspace .metric a{font-size:12px}
+.admin-workspace .table-wrap{border:1px solid var(--line);border-radius:9px}
+.admin-workspace table{min-width:640px}
+.admin-workspace th{background:#f7f9fc;color:#8090a4;font-size:11px;font-weight:600;letter-spacing:0;text-transform:none}
+.admin-workspace th,.admin-workspace td{padding:13px 14px}
+.admin-workspace td{font-size:12px;line-height:1.55;vertical-align:middle}
+.admin-workspace tbody tr:last-child td{border-bottom:0}
+.admin-workspace tbody tr:hover{background:#fafcff}
+.admin-workspace td button{min-height:30px;padding:5px 9px;font-size:12px;white-space:nowrap}
+.admin-workspace td code{font-size:11px;overflow-wrap:anywhere}
+.admin-workspace .pill{font:600 11px/1.2 "Avenir Next","Segoe UI",sans-serif;padding:4px 8px}
+.admin-workspace .empty{font-size:13px;padding:32px 20px}
+.admin-workspace .status:empty{min-height:0}
+.admin-workspace details>summary{cursor:pointer;font-size:12px;color:#738197;line-height:1.7}
+.admin-workspace dialog{border-color:var(--line);box-shadow:0 24px 80px #16243b26}
+.admin-workspace dialog::backdrop{background:#17283f66;backdrop-filter:blur(3px)}
+.admin-workspace :focus-visible{outline:2px solid #2865c7;outline-offset:3px}
+.admin-workspace .resource-search{display:flex;gap:14px;align-items:center;margin:0 0 12px}
+.admin-workspace .resource-search input{max-width:320px;background:#fff}
+.admin-workspace .resource-search output{font-size:12px;color:var(--muted);white-space:nowrap}
+.admin-workspace .table-no-matches{padding:22px;text-align:center;font-size:13px;color:var(--muted)}
+.admin-workspace .telegram-hero{background:#fff;box-shadow:none}
+.admin-workspace .section-kicker:before{display:none}
+@media(max-width:1100px){.admin-workspace .content{width:calc(100% - 36px)}}
+@media(max-width:850px){
+.admin-workspace .shell{grid-template-columns:1fr}
+.admin-workspace .side{padding:14px}
+.admin-workspace .brand{padding:0 4px}
+.admin-workspace .content{width:calc(100% - 28px);padding-top:22px}
+.admin-workspace .content>.page-head{align-items:flex-start;gap:16px}
+.admin-workspace h1{font-size:25px}
+.admin-workspace .card{padding:17px}
+.admin-workspace .nav small{grid-column:1/-1}
+.admin-workspace .resource-search{flex-wrap:wrap;gap:8px}
+}
+@media(prefers-reduced-motion:reduce){.admin-workspace *{transition:none!important;scroll-behavior:auto!important}}
+.admin-workspace .nav a:not(.button){color:#536279}
+.admin-workspace .nav a.active:not(.button){color:#205cae}
+.admin-workspace .llm-lab h2 label{font-size:16px;color:var(--ink)}
+.admin-workspace .delivery-help{margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
+.admin-workspace .delivery-help p{margin-top:8px}
+.admin-workspace button.danger-action{color:#b42318;border-color:#edc9c5;background:#fff}

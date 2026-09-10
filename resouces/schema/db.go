@@ -10,6 +10,8 @@ const (
 	StatusRevoked        = "revoked"
 	GooglePurposeGeneral = "general"
 	GooglePurposeXbox    = "xbox"
+	XboxStatusWaiting    = "waiting_setup"
+	XboxStatusReady      = "ready"
 )
 
 type AccessKey struct {
@@ -52,6 +54,7 @@ type GoogleAccount struct {
 	GoogleUserID        string     `gorm:"size:160;uniqueIndex" json:"googleUserId"`
 	Status              string     `gorm:"size:24;not null;index" json:"status"`
 	Purpose             string     `gorm:"size:32;not null;default:'';index" json:"purpose,omitempty"`
+	XboxStatus          string     `gorm:"size:24;not null;default:'';index" json:"xboxStatus,omitempty"`
 	AssignedAccessKeyID *string    `gorm:"size:80;uniqueIndex" json:"assignedAccessKeyId,omitempty"`
 	AssignedAt          *time.Time `json:"assignedAt,omitempty"`
 	CreatedAt           time.Time  `json:"createdAt"`
