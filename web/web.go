@@ -42,6 +42,9 @@ var googleHTML []byte
 //go:embed browser.html
 var browserHTML []byte
 
+//go:embed xbox_child.html
+var xboxChildHTML []byte
+
 //go:embed xbot.html
 var xbotHTML []byte
 
@@ -82,6 +85,7 @@ func RegisterRoutes(routes *gin.Engine, authentication gin.HandlerFunc) {
 	protected.GET("/admin/users", func(c *gin.Context) { renderAdminDocument(c, usersHTML) })
 	protected.GET("/admin/google", func(c *gin.Context) { renderAdminDocument(c, googleHTML) })
 	protected.GET("/admin/browser", func(c *gin.Context) { renderAdminDocument(c, browserHTML) })
+	protected.GET("/admin/xbox-child", func(c *gin.Context) { renderAdminDocument(c, xboxChildHTML) })
 	protected.GET("/admin/xbot", func(c *gin.Context) { renderAdminDocument(c, xbotHTML) })
 	protected.GET("/admin/telegram", func(c *gin.Context) { renderAdminDocument(c, telegramHTML) })
 	protected.GET("/admin/weixin", func(c *gin.Context) { renderAdminDocument(c, weixinHTML) })
@@ -111,5 +115,9 @@ func renderAdminDocument(c *gin.Context, page []byte) {
 	active := []byte(`class="active" ` + string(href) + ` aria-current="page"`)
 	navigation := bytes.Replace(navigationHTML, href, active, 1)
 	body := bytes.Replace(page, []byte("<!-- admin-navigation -->"), navigation, 1)
+	if bytes.Contains(page, []byte("<!-- admin-navigation -->")) {
+		body = bytes.Replace(body, []byte("</head>"), []byte(`<link rel="stylesheet" href="/admin/assets/admin-enhancements.css"></head>`), 1)
+		body = bytes.Replace(body, []byte("<body>"), []byte(`<body class="admin-workspace">`), 1)
+	}
 	c.Data(http.StatusOK, "text/html; charset=utf-8", body)
 }

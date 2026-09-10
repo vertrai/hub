@@ -1,1 +1,122 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>LLM 测试 · Hub</title><link rel="stylesheet" href="/admin/assets/common.css"><style>.card{margin-bottom:20px}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.wide{grid-column:1/-1}pre{white-space:pre-wrap;overflow-wrap:anywhere}textarea{min-height:110px} @media(max-width:700px){.form-grid{grid-template-columns:1fr}}.test-model-section{border:1px solid #e1e8f0;border-radius:12px;padding:18px;margin:0}.test-model-section p{font-size:13px;color:#718096}.test-model-section h3{font-size:13px;margin:16px 0 10px}.test-model-choices{display:flex;flex-wrap:wrap;gap:10px}.test-model-option{display:flex;align-items:center;gap:8px;border:1px solid #dce5f0;border-radius:8px;padding:12px;font-size:13px;cursor:pointer}.test-model-option input{width:auto;accent-color:#2468c7}.test-model-option:has(input:checked){background:#eff6ff;border-color:#8db4e8}</style></head><body><div class="shell"><aside class="side"><div class="brand"><span>AGENT RUNTIME CONTROL</span><b>Agent Runtime Hub</b></div><!-- admin-navigation --></aside><main class="content"><header class="page-head"><div><h1>LLM 测试</h1><p>使用已创建的 LLM Key，验证授权模型与 hub-chat 路由。</p></div><a href="/admin/llm">返回中转站</a></header><section class="card"><div class="form-grid"><label>用户<select id="testUser"><option value="">请选择用户</option></select></label><label>Hub Key<select id="testHubKey"></select></label></div><p id="identityStatus" role="status"></p><p id="routeInfo"></p><label>LLM API Key（自动获取）<input id="resolvedKey" type="password" readonly autocomplete="off" placeholder="选择 Hub Key 后自动获取"></label><button id="reloadKey" type="button">重新获取</button> <a href="/admin/llm" id="createKeyLink" hidden>前往中转站创建 LLM Key</a></section><section class="card"><form id="testForm" class="form-grid"><fieldset class="wide test-model-section"><legend>选择测试模型</legend><p>可以测试 hub-chat 默认路由，也可以直接调用已授权的对外模型。</p><h3>默认路由</h3><div id="testAliasChoices"></div><h3>直接调用对外模型</h3><div id="testDirectChoices" class="test-model-choices"></div><select id="testModel" hidden></select></fieldset><label>请求地址<input readonly value="/llm/v1/chat/completions"></label><label class="wide">测试消息<textarea id="testPrompt" required>请只回复：ok</textarea></label><div class="wide"><button id="sendTest" disabled type="submit">开始测试</button> <button id="cancelTest" type="button" disabled>停止</button></div></form><p>请求发送到当前 Hub，会产生正常的上游模型用量。密钥不保存在浏览器存储中。</p><p id="testStatus" role="status"></p><h3>模型回复</h3><pre id="answer">等待测试</pre><details><summary>原始响应与用量</summary><pre id="rawResponse"></pre></details></section></main></div><script src="/admin/assets/common.js"></script><script src="/admin/assets/llm-test.js"></script></body></html>
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LLM 测试 · Hub</title>
+<link rel="stylesheet" href="/admin/assets/common.css">
+<style>
+.llm-lab{--lab-line:#e2e8f0;--lab-blue:#2468c7;--lab-muted:#718096;max-width:1280px}
+.llm-lab .page-head{align-items:center;margin-bottom:24px}
+.llm-lab h1{font-size:30px;letter-spacing:-.025em;line-height:1.2}
+.llm-lab .page-head p{font-size:13px;margin-top:8px}
+.llm-lab .button{font-size:13px;white-space:nowrap}
+.lab-layout{display:grid;grid-template-columns:300px minmax(0,1fr);gap:24px;align-items:start}
+.lab-config,.lab-workspace{min-width:0}
+.lab-panel{background:#fff;border:1px solid var(--lab-line);border-radius:14px;overflow:hidden}
+.lab-config .lab-panel{padding:20px}
+.lab-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}
+.llm-lab h2{font-size:16px;margin:0}
+.lab-section+.lab-section{border-top:1px solid var(--lab-line);padding-top:20px;margin-top:20px}
+.lab-fields{display:grid;gap:14px}
+.llm-lab label{font-size:12px;gap:8px}
+.llm-lab select,.llm-lab input{min-height:40px;font-size:13px;font-weight:500;padding:9px 10px}
+.llm-lab button{font-size:13px;padding:9px 12px}
+.llm-lab button:disabled{cursor:not-allowed}
+.llm-lab label>button.secondary{justify-self:start;border:0;padding:0;color:var(--lab-muted);min-height:24px;background:transparent;font-size:12px}
+.llm-lab #identityStatus{font-size:12px;margin-top:14px;overflow-wrap:anywhere}
+.llm-lab #routeInfo{display:none}
+.lab-details{font-size:12px;color:var(--lab-muted);margin-top:14px}
+.lab-details summary{cursor:pointer;padding:6px 0}
+.lab-details label{margin-top:12px}
+.lab-details button{margin-top:8px}
+.lab-details code{display:block;overflow-wrap:anywhere;padding:10px 0;font-size:11px}
+.llm-lab #createKeyLink{font-size:12px}
+.model-caption{font-size:12px;color:var(--lab-muted);margin:16px 0 8px}
+.test-model-choices{display:grid;gap:8px}
+.test-model-option{display:flex;align-items:center;gap:9px;border:1px solid var(--lab-line);border-radius:8px;padding:11px!important;font-size:13px!important;cursor:pointer;line-height:1.5}
+.test-model-option span{overflow-wrap:anywhere;min-width:0}
+.llm-lab .test-model-option input{width:15px;height:15px;min-height:0;margin:0;flex-shrink:0;accent-color:var(--lab-blue)}
+.test-model-option:has(input:checked){background:#eff6ff;border-color:#8bb3eb;color:#194f99}
+#testDirectChoices{max-height:320px;overflow:auto}
+#testAliasChoices:empty::after,#testDirectChoices:empty::after{content:"选择用户和 Hub Key 后加载";color:var(--lab-muted);font-size:12px}
+.lab-workspace{display:grid;gap:20px}
+.composer-head,.reply-head{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:18px 22px;border-bottom:1px solid var(--lab-line)}
+.lab-chip{font-size:11px;color:#52677f;background:#f1f5f9;padding:4px 8px;border-radius:5px}
+.image-composer{padding:0 22px}
+.llm-lab #testPrompt{width:100%;border:0;box-shadow:none;border-radius:0;padding:20px 0;resize:vertical;min-height:170px;font:400 14px/1.8 "Avenir Next","Segoe UI",sans-serif}
+.image-composer:focus-within{box-shadow:inset 3px 0 0 #8bb3eb}
+.image-composer.dragging{background:#eff6ff;box-shadow:inset 0 0 0 2px #8bb3eb}
+.image-previews{display:flex;gap:10px;flex-wrap:wrap}
+.image-preview{position:relative;margin:0 0 14px;width:88px;min-width:0;border:1px solid var(--lab-line);border-radius:9px;overflow:hidden;background:#f7f9fc}
+.image-preview img{display:block;width:100%;height:70px;object-fit:contain}
+.image-preview figcaption{padding:5px 7px;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.llm-lab .image-preview button{position:absolute;top:3px;right:3px;border:0;border-radius:50%;padding:0;width:20px;height:20px;min-height:0;background:#fff;color:#42536a;font-size:15px;box-shadow:0 1px 5px #0002}
+.composer-footer{border-top:1px solid var(--lab-line);padding:13px 18px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;background:#fafbfd}
+.image-toolbar,.send-actions{display:flex;align-items:center;gap:8px}
+.composer-help{font-size:11px;padding:10px 22px 15px;color:var(--lab-muted);line-height:1.6}
+#imageStatus{color:#b42318;font-size:12px;margin-bottom:8px}
+#imageStatus:empty{display:none}
+.reply-head{align-items:start}
+.llm-lab #testStatus{font-size:12px;text-align:right}
+.llm-lab #answer{font:400 14px/1.85 "Avenir Next","Segoe UI",sans-serif;white-space:pre-wrap;overflow-wrap:anywhere;margin:0;padding:24px;min-height:210px}
+.reply-details{border-top:1px solid var(--lab-line);padding:12px 22px;margin:0}
+#rawResponse{max-height:360px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.6 ui-monospace,monospace;background:#f7f9fc;border-radius:8px}
+#rawResponse:not(:empty){padding:14px}
+.lab-note{font-size:11px;color:var(--lab-muted);padding:0 4px}
+@media(max-width:1100px){.lab-layout{grid-template-columns:260px minmax(0,1fr);gap:16px}}
+@media(max-width:700px){.lab-layout{grid-template-columns:1fr}.llm-lab .page-head{align-items:flex-start;gap:14px}.lab-config .lab-panel{padding:16px}.lab-fields{grid-template-columns:1fr 1fr}.llm-lab label{min-width:0}.composer-head,.reply-head{padding:16px}.image-composer{padding:0 16px}.test-model-choices{grid-template-columns:repeat(auto-fit,minmax(130px,1fr))}.llm-lab #answer{padding:18px}.reply-head{flex-wrap:wrap}}
+</style>
+</head>
+<body>
+<div class="shell">
+<aside class="side"><div class="brand"><span>AGENT RUNTIME CONTROL</span><b>Agent Runtime Hub</b></div><!-- admin-navigation --></aside>
+<main class="content llm-lab">
+<header class="page-head"><div><h1>LLM 测试</h1><p>选择模型，发送文字或图片，验证实际回复。</p></div><a class="button secondary" href="/admin/llm">← 返回中转站</a></header>
+<div class="lab-layout">
+<aside class="lab-config"><section class="lab-panel">
+<div class="lab-section">
+<div class="lab-heading"><h2>测试配置</h2></div>
+<div class="lab-fields">
+<label>用户<select id="testUser"><option value="">请选择用户</option></select></label>
+<label>Hub Key<select id="testHubKey"><option value="">请先选择用户</option></select></label>
+</div>
+<p id="identityStatus" role="status"></p><p id="routeInfo"></p>
+<a href="/admin/llm" id="createKeyLink" hidden>前往中转站创建 LLM Key →</a>
+<details class="lab-details"><summary>连接详情</summary>
+<label>LLM API Key<input id="resolvedKey" type="password" readonly autocomplete="off" placeholder="选择 Hub Key 后自动获取"></label>
+<button id="reloadKey" type="button" class="secondary">重新获取密钥</button>
+<code>POST /llm/v1/chat/completions</code>
+</details>
+</div>
+<div class="lab-section" role="group" aria-labelledby="modelHeading">
+<h2 id="modelHeading">测试模型</h2>
+<p class="model-caption">默认路由</p><div id="testAliasChoices" class="test-model-choices"></div>
+<p class="model-caption">直接调用对外模型</p><div id="testDirectChoices" class="test-model-choices"></div>
+<select id="testModel" hidden></select>
+</div>
+</section></aside>
+<div class="lab-workspace">
+<form id="testForm" class="lab-panel">
+<div class="composer-head"><h2><label for="testPrompt">测试消息</label></h2><span class="lab-chip">文字 / 图片</span></div>
+<div class="image-composer" id="testComposer">
+<textarea id="testPrompt" placeholder="输入问题，或粘贴图片后描述你想了解的内容…">请只回复：ok</textarea>
+<div id="imagePreviews" class="image-previews"></div><p id="imageStatus" role="status"></p>
+</div>
+<div class="composer-footer">
+<div class="image-toolbar"><button type="button" class="secondary" id="addTestImages">＋ 图片</button><input type="file" id="testImages" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden></div>
+<div class="send-actions"><button id="cancelTest" type="button" class="secondary" disabled>停止</button><button id="sendTest" disabled type="submit">开始测试 →</button></div>
+</div>
+<p class="composer-help">支持粘贴、拖入图片，最多 4 张 / 合计 4 MB。图片测试需选择支持图片理解的模型。</p>
+</form>
+<section class="lab-panel" aria-labelledby="replyHeading">
+<div class="reply-head"><h2 id="replyHeading">模型回复</h2><p id="testStatus" role="status"></p></div>
+<pre id="answer">选择模型并发送消息，回复将显示在这里。</pre>
+<details class="lab-details reply-details"><summary>原始响应与用量</summary><pre id="rawResponse"></pre></details>
+</section>
+<p class="lab-note">测试会产生正常模型用量；密钥和图片不保存在浏览器存储中。</p>
+</div>
+</div>
+</main>
+</div>
+<script src="/admin/assets/common.js"></script><script src="/admin/assets/llm-test.js"></script>
+</body></html>

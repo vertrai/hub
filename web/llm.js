@@ -101,6 +101,7 @@ $("apiForm").onsubmit = async e => {
 function openOAuth(p = null) {
   if (oauthSession) { $("oauthDialog").showModal(); return; }
   reauthorizing = p;
+  $("oauthSuccess").hidden=true;
   $("oauthAccountHelp").textContent = p ? "输入 Code 并完成授权。重新授权必须登录此 Provider 原来绑定的 OpenAI 账号。" : "输入 Code 并完成授权。如需连接其他账号，请在 OpenAI 页面切换账号。";
   $("oauthForm").reset();
   $("oauthForm").hidden = false;
@@ -118,6 +119,12 @@ function updateOAuthModelPreview(){
 }
 $("appendCodexModels").onclick=()=>{if(reauthorizing || oauthSession)return;$("oauthModels").value=[...new Set([...modelsFrom($("oauthModels").value),...codexPreset.models])].join('\n');updateOAuthModelPreview();};
 $("oauthModels").oninput=updateOAuthModelPreview;
+$("oauthURL").onclick=()=>$("oauthURL").select();
+$("copyOAuthLink").onclick=async()=>{
+ const input=$("oauthURL");
+ try{await navigator.clipboard.writeText(input.value);showStatus($("oauthStatus"),'授权链接已复制，可粘贴到另一个 Chrome 窗口打开。',true);}
+ catch{input.focus();input.select();showStatus($("oauthStatus"),'已选中授权链接，请按 Ctrl+C 或 ⌘C 复制。');}
+};
 $("copyOAuthCode").onclick=async()=>{
  if(!oauthSession)return;
  try{await navigator.clipboard.writeText($("oauthCode").textContent);showStatus($("oauthStatus"),'授权码已复制，请在 OpenAI 页面粘贴。',true);}catch{showStatus($("oauthStatus"),'无法自动复制，请选中授权码手动复制。');}
@@ -134,7 +141,7 @@ function updateOAuthClock() {
   const wait = Math.max(0, Math.ceil((oauthSession.nextPoll - Date.now()) / 1000));
   $("oauthExpiry").textContent = remaining ? `授权码有效期剩余 ${Math.floor(remaining / 60)} 分 ${remaining % 60} 秒` : '授权码已过期，请取消后重新生成。';
   $("completeOAuth").disabled = oauthBusy || !remaining || wait > 0;
-  $("completeOAuth").textContent = oauthBusy ? '连接中…' : wait ? `完成连接（${wait} 秒后）` : '完成连接';
+  $("completeOAuth").textContent = oauthBusy ? '连接中…' : wait ? `检查授权（${wait} 秒后）` : '立即检查授权';
 }
 function clearOAuth() {
   clearInterval(oauthTimer);
@@ -161,13 +168,18 @@ $("oauthForm").onsubmit = async e => {
     $("oauthForm").hidden = true;
     $("oauthTarget").textContent = `${input.name || "Codex 账号"} · 等待授权`;
     $("oauthResult").hidden = false;
-    showStatus($("oauthStatus"), '请在 OpenAI 页面完成授权，再回到这里完成连接。', true);
+    showStatus($("oauthStatus"), '等待 OpenAI 授权，Hub 将自动检测结果并保存账号。', true);
     clearInterval(oauthTimer);
-    oauthTimer = setInterval(updateOAuthClock, 1000);
+    oauthTimer = setInterval(()=>{
+ updateOAuthClock();
+ if(!oauthSession || oauthBusy || oauthSession.paused)return;
+ if(Date.now()>=Date.parse(oauthSession.expiresAt)){oauthSession.paused=true;showStatus($("oauthStatus"),'授权码已过期，请取消后重新获取。');return;}
+ if(Date.now()>=oauthSession.nextPoll)checkOAuthCompletion();
+}, 1000);
   } catch (err) { showStatus($("oauthStatus"), err.message); }
   finally { oauthBusy = false; setBusy($("startOAuth"), false); setOAuthFields(!!oauthSession); updateOAuthClock(); }
 };
-$("completeOAuth").onclick = async () => {
+async function checkOAuthCompletion() {
   if (!oauthSession || oauthBusy) return;
   oauthBusy = true;
   updateOAuthClock();
@@ -176,18 +188,24 @@ $("completeOAuth").onclick = async () => {
     const data = await adminRequest('/v1/admin/llm/oauth/device/complete', {method:'POST', body:JSON.stringify({state:oauthSession.state})});
     if (data.status === 'authorization_pending') {
       oauthSession.nextPoll = Date.now() + (data.retryAfter || 5) * 1000;
-      showStatus($("oauthStatus"), 'OpenAI 授权尚未完成，请授权后再次点击“完成连接”。', true);
+      showStatus($("oauthStatus"), '等待你在 OpenAI 页面完成授权，系统会继续自动检查。', true);
       return;
     }
     clearOAuth();
-    $("oauthDialog").close();
+    $("oauthForm").hidden=true;
+    $("oauthSuccess").hidden=false;
+    $("oauthSuccessMessage").textContent=`${data.name || 'Codex 账号'} 已授权成功，账号凭据已持久化保存。`;
+    $("oauthStatus").textContent='';
+    $("oauthStepSetup").classList.remove('current');$("oauthStepAuthorize").classList.add('current');
     showStatus($("providerStatus"), `${data.name || data.providerId} 已连接，可继续添加其他 Codex 账号。`, true);
     await refreshProviders();
-  } catch (err) { showStatus($("oauthStatus"), err.message); }
+  } catch (err) { if(oauthSession)oauthSession.paused=true;showStatus($("oauthStatus"), err.message+"；自动检查已暂停，可点击立即检查重试。"); }
   finally { oauthBusy = false; $("cancelOAuth").disabled = false; setOAuthFields(!!oauthSession); updateOAuthClock(); }
-};
+}
+$("completeOAuth").onclick=()=>{if(oauthSession)oauthSession.paused=false;checkOAuthCompletion();};
 $("cancelOAuth").onclick = async () => {
   if (!oauthSession || oauthBusy) return;
+  oauthBusy=true;
   try {
     await adminRequest('/v1/admin/llm/oauth/device/' + encodeURIComponent(oauthSession.state), {method:'DELETE'});
     clearOAuth();
@@ -195,7 +213,7 @@ $("cancelOAuth").onclick = async () => {
   } catch (err) {
     if (err.status === 404) { clearOAuth(); showStatus($("oauthStatus"), '会话已失效，可以重新生成。', true); }
     else showStatus($("oauthStatus"), err.message);
-  }
+  } finally {oauthBusy=false;}
 };
 
 function openSettings(p) {
@@ -288,7 +306,9 @@ $("keyForm").onsubmit=async e=>{
  try{await adminRequest(boundPath(creatingBoundOwner.userId,creatingBoundOwner.keyId),{method:'POST',body:JSON.stringify({...creatingBoundOwner,allowedModels:selectedModels('keyModels'),defaultModel:$("keyDefault").value})});$("createKeyDialog").close();await refreshKeys();await loadBoundSelection();}
  catch(err){showStatus($("createKeyStatus"),err.message);}finally{setBusy(e.submitter,false);}
 };
-(async()=>{try{const data=await adminRequest('/v1/admin/users');llmUsers=data.items;$("llmUser").innerHTML='<option value="">请选择用户</option>'+llmUsers.map(u=>`<option value="${esc(u.id)}">${esc(u.name || u.id)}</option>`).join('');await refreshKeys();}catch(err){showStatus($("keyStatus"),err.message);}})();
+initLLMUserSelector($("llmUser"), $("keyStatus"), async items => {
+ llmUsers=items; $("llmUser").onchange(); await refreshKeys();
+});
 $("keys").onclick = async e => {
   const policyButton=e.target.closest('[data-key-policy]');
   if(policyButton){openKeyPolicy(llmKeyRows.find(k=>k.id===policyButton.dataset.keyPolicy));return;}

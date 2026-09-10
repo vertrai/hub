@@ -65,7 +65,9 @@ llm_api_key = <返回的 apiKey>
 llm_model = hub-chat
 ```
 
-也可将 `llm_model` 设置为返回列表中的显式模型 ID。Hymatrix 后台启动页默认使用 Hub LLM 资源，可点击领取查看配置，启动时后端重新验证并获取。小程序创建 Agent 自动使用其 Hub Key 领取资源；无需配置静态 `miniProgram.agent.llm`。
+也可将 `llm_model` 设置为返回列表中的显式模型 ID。Hymatrix 后台启动页默认使用 Hub LLM 资源，可点击领取查看配置，启动时后端重新验证并获取。
+
+小程序的 `micai-agent` 和 `tax-agent` 在创建 Pod 前，先创建 Hub API Key，再通过该 Key 申请 Hub LLM API Key，并将返回的 Key、Base URL、Provider 和模型保存到 Pod 配置。LLM 资源申请失败时停止创建，不进入微信绑定阶段。微信绑定后启动 Agent 时重新验证并复用同一把 LLM Key，通过加密参数下发密钥；`HERMES_AGENT_LLM_MODEL` 固定为 `hub-chat`，`HERMES_AGENT_LLM_PROVIDER` 为 `custom`，无需配置静态 `miniProgram.agent.llm`。
 
 自动申请模型设置只作为新 Key 的初始策略；修改它不会覆盖已分配 Key 的独立策略。升级已分配 Key，在后台编辑其允许模型及默认模型，或调用管理员接口：
 

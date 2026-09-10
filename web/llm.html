@@ -23,6 +23,7 @@
  .key-policy-section{margin:20px 0;padding:18px;border:1px solid #e1e8f0;border-radius:10px}.key-policy-section h3{font-size:15px;margin:0 0 8px}.key-policy-section p{font-size:12px;color:#718096;line-height:1.7;margin:0 0 14px}.key-policy-section .model-check-list{max-height:260px;overflow:auto}.key-policy-section .settings-hint{margin:12px 0 0}
 
     #oauthDialog{width:min(620px,calc(100% - 28px));padding:28px}#oauthDialog .section-head{margin-bottom:20px}#oauthDialog h2{font-size:22px}#oauthDialog .section-head p{font-size:13px;line-height:1.7;margin-top:8px}.oauth-steps{display:flex;align-items:center;gap:12px;padding:12px 0 20px;color:#8996a8;font-size:12px}.oauth-steps .current{color:#245ba0;font-weight:650}.step-arrow{color:#b0bbc8}.oauth-field{display:flex;flex-direction:column;gap:8px;font-size:13px}.oauth-field>.field-help{font-weight:400}.oauth-model-panel{margin-top:20px;padding:16px;background:#f7f9fc;border:1px solid #e4eaf2;border-radius:10px}#oauthModels{min-height:90px;font:13px/1.7 ui-monospace,monospace}#oauthModelPreview:empty{display:none}#oauthModelPreview{margin-top:12px}.oauth-footer{display:flex;justify-content:space-between;align-items:center;gap:16px;border-top:1px solid #e6ecf3;padding-top:18px;margin-top:22px}.oauth-footer button{font-size:13px;white-space:nowrap}.oauth-footer .settings-hint{margin:0}#oauthResult{padding:0;background:none;border:0;margin:0}.oauth-code-panel{padding:18px;border:1px solid #dae5f3;border-radius:10px;background:#f3f7fd}.oauth-code-row{display:flex;align-items:center;justify-content:space-between;gap:12px}.oauth-code-row .user-code{font-size:26px;overflow-wrap:anywhere}.oauth-code-row button{font-size:12px;padding:8px 12px}.oauth-open{display:inline-block}.oauth-instructions{margin:18px 0!important}#oauthTarget{margin:0 0 14px;color:#526780;font-size:13px}@media(max-width:600px){#oauthDialog{padding:20px}.oauth-footer{align-items:stretch;flex-direction:column}.oauth-code-row{flex-wrap:wrap}}
+    .oauth-url-row{display:flex;gap:10px;align-items:center;margin-top:8px}.oauth-url-row input{flex:1;min-width:0;font:13px/1.6 ui-monospace,monospace}.oauth-url-row button{flex:none;white-space:nowrap;font-size:13px}#oauthLink{font-size:13px;color:#245ba0;margin-top:12px}@media(max-width:600px){.oauth-url-row{align-items:stretch;flex-direction:column}}
   </style>
 </head>
 <body>
@@ -74,10 +75,14 @@
   <div id="oauthResult" class="oauth-result" hidden>
     <p id="oauthTarget" class="help-line"></p>
     <div class="oauth-code-panel"><span class="eyebrow">一次性授权码</span><div class="oauth-code-row"><code id="oauthCode" class="user-code"></code><button type="button" class="secondary" id="copyOAuthCode">复制授权码</button></div><p id="oauthExpiry" class="settings-hint"></p></div>
-    <ol class="oauth-instructions"><li>打开 OpenAI 页面，登录要连接的账号。</li><li id="oauthAccountHelp">输入授权码并完成授权。</li><li>返回 Hub，点击“完成连接”。</li></ol>
-    <a id="oauthLink" class="test-link oauth-open" href="https://auth.openai.com/codex/device" target="_blank" rel="noopener noreferrer">打开 OpenAI 授权页面 ↗</a>
+    <ol class="oauth-instructions"><li>打开 OpenAI 页面，登录要连接的账号。</li><li id="oauthAccountHelp">输入授权码并完成授权。</li><li>Hub 会自动检测授权结果并保存账号，可返回此页查看进度。</li></ol>
+    <label class="oauth-field" for="oauthURL">OpenAI 授权链接</label>
+    <div class="oauth-url-row"><input id="oauthURL" type="text" readonly value="https://auth.openai.com/codex/device" aria-label="OpenAI 授权链接"><button type="button" class="secondary" id="copyOAuthLink">复制链接</button></div>
+    <p class="settings-hint">复制到另一个 Chrome 窗口打开，登录目标账号后输入上方授权码。</p>
+    <a id="oauthLink" class="oauth-open" href="https://auth.openai.com/codex/device" target="_blank" rel="noopener noreferrer">直接打开授权页面 ↗</a>
     <div class="oauth-footer"><button type="button" class="secondary" id="cancelOAuth">取消本次授权</button><button type="button" id="completeOAuth">完成连接</button></div>
   </div>
+  <div id="oauthSuccess" class="oauth-code-panel" hidden role="status"><h3>✓ Codex 账号已连接</h3><p id="oauthSuccessMessage"></p><p class="settings-hint">凭据已保存，可关闭此窗口并配置模型路由。</p></div>
   <p id="oauthStatus" class="status" role="status"></p>
 </dialog>
 

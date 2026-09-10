@@ -380,6 +380,12 @@ func (m *Manager) provisionMiniProgramPod(ctx context.Context, task *schema.Mini
 	if err := m.wdb.Db.Create(&accessKey).Error; err != nil {
 		return fmt.Errorf("store gateway access key: %w", err)
 	}
+	// Allocate before creating the Pod so both mini-program templates have a
+	// usable relay configuration before the user proceeds to Weixin binding.
+	resource, err := m.hermesLLMResource(ctx, accessKey.Secret, "hub-chat")
+	if err != nil {
+		return fmt.Errorf("allocate LLM resource: %w", err)
+	}
 	cfg := m.config.MiniProgram
 	module := miniProgramModuleForTemplate(cfg, task.Template)
 	if module == "" {
@@ -399,6 +405,8 @@ func (m *Manager) provisionMiniProgramPod(ctx context.Context, task *schema.Mini
 		podName = "MicAI Minecraft 助手"
 	}
 	pod := schema.HymatrixPod{ID: "pod_" + strings.ReplaceAll(uuid.NewString(), "-", ""), UserID: task.UserID, Name: podName, RuntimeType: cfg.RuntimeType, Status: schema.PodStatusSpawning, NodeURL: cfg.NodeURL, AdminURL: cfg.AdminURL, PrivateKey: cfg.PrivateKey, Module: module, Scheduler: hymatrixConfig.Scheduler, AccessKeyID: accessKey.ID}
+	pod.GatewayAPIKey = accessKey.Secret
+	pod.LLMAPIKey, pod.LLMBaseURL, pod.LLMModel, pod.LLMProvider = resource.APIKey, resource.BaseURL, resource.Model, resource.Provider
 	pod.PID = "pending_" + pod.ID
 	if err := m.wdb.Db.Create(&pod).Error; err != nil {
 		return err
@@ -428,6 +436,8 @@ func (m *Manager) startMiniProgramPod(ctx context.Context, task *schema.MiniProg
 	if err := m.wdb.Db.First(&bot, "id = ? AND user_id = ? AND status = ?", weixinBotID, task.UserID, schema.WeixinBotStatusAvailable).Error; err != nil {
 		return fmt.Errorf("load available Weixin bot: %w", err)
 	}
+	// Reacquisition returns the same key and checks current policy/revocation.
+	// This also supports Pods created before allocation moved to provisioning.
 	resource, err := m.hermesLLMResource(ctx, accessKey.Secret, "hub-chat")
 	if err != nil {
 		return fmt.Errorf("allocate LLM resource: %w", err)
