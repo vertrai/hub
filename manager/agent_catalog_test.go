@@ -120,12 +120,12 @@ func TestCatalogLifecycleAndOwnership(t *testing.T) {
 		t.Fatal("cross-user task access")
 	}
 }
-func TestCatalogSeedDoesNotRepublishAndOldTemplateStillWorks(t *testing.T) {
+func TestCatalogSeedDoesNotRepublishAndInitialAgentsRouteCorrectly(t *testing.T) {
 	m := catalogFixture(t)
 	for _, id := range []string{miniProgramTemplateTax, miniProgramTemplateMicAI} {
 		task, err := m.reserveMiniProgramAgentTask("wx_catalog_owner", id, "hash")
 		if err != nil || task.ModuleSnapshot == "" {
-			t.Fatalf("legacy template %s: %v", id, err)
+			t.Fatalf("initial agent %s: %v", id, err)
 		}
 	}
 	m.wdb.Db.Model(&schema.AgentCatalogEntry{}).Where("id = ?", miniProgramTemplateTax).Updates(map[string]any{"published": false, "name": "定制名称"})
@@ -167,5 +167,24 @@ func TestCatalogAdminRoutesRequireAuthentication(t *testing.T) {
 		if rec.Code != 401 {
 			t.Fatalf("%s %s = %d", method, path, rec.Code)
 		}
+	}
+}
+
+func TestCatalogCurrentRequiresAgentID(t *testing.T) {
+	m := catalogFixture(t)
+	rec := catalogRequest(m, "GET", "/?template=tax-agent", "", "wx_catalog_owner", m.getCurrentMiniProgramAgent, nil)
+	if rec.Code != 400 {
+		t.Fatalf("legacy parameter accepted: %d %s", rec.Code, rec.Body.String())
+	}
+	rec = catalogRequest(m, "GET", "/?agentId=tax-agent", "", "wx_catalog_owner", m.getCurrentMiniProgramAgent, nil)
+	if rec.Code != 200 {
+		t.Fatalf("agentId rejected: %d %s", rec.Code, rec.Body.String())
+	}
+	payload := m.miniProgramTaskResponse(schema.MiniProgramAgentTask{Template: "tax-agent"}, "")
+	if payload["agentId"] != "tax-agent" {
+		t.Fatal("missing agentId")
+	}
+	if _, exists := payload["template"]; exists {
+		t.Fatal("legacy response field retained")
 	}
 }

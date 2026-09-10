@@ -142,7 +142,7 @@ func (m *Manager) listMyMiniProgramAgents(c *gin.Context) {
 	result := make([]gin.H, 0, len(tasks))
 	for _, t := range tasks {
 		m.reconcileMiniProgramWeixinAttempt(&t)
-		r := gin.H{"taskId": t.ID, "template": t.Template, "status": t.Status, "createdAt": t.CreatedAt}
+		r := gin.H{"taskId": t.ID, "status": t.Status, "createdAt": t.CreatedAt}
 		r["agentId"] = t.Template
 		r["agent"] = publicCatalogEntry(byID[t.Template])
 		result = append(result, r)
@@ -227,7 +227,7 @@ func (m *Manager) adminDeleteAgentCatalog(c *gin.Context) {
 			return err
 		}
 		if a.ID == miniProgramTemplateTax || a.ID == miniProgramTemplateMicAI {
-			return errors.New("内置助手请使用下架，以保留旧版本兼容性")
+			return errors.New("内置初始化助手请使用下架，避免重启时重新生成配置")
 		}
 		if a.Published {
 			return errors.New("请先下架助手")

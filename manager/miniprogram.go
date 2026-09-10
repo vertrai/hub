@@ -103,18 +103,14 @@ func (m *Manager) spawnMiniProgramAgent(c *gin.Context) {
 		return
 	}
 	var input struct {
-		Template string `json:"template"`
-		AgentID  string `json:"agentId"`
+		AgentID string `json:"agentId"`
 	}
 	if c.ShouldBindJSON(&input) != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
 	template := strings.TrimSpace(input.AgentID)
-	if template == "" {
-		template = strings.TrimSpace(input.Template)
-	}
-	if !catalogID.MatchString(template) || (input.AgentID != "" && input.Template != "" && input.AgentID != input.Template) {
+	if !catalogID.MatchString(template) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid agent ID"})
 		return
 	}
@@ -248,9 +244,6 @@ func (m *Manager) getCurrentMiniProgramAgent(c *gin.Context) {
 		return
 	}
 	template := c.Query("agentId")
-	if template == "" {
-		template = c.Query("template")
-	}
 	if !catalogID.MatchString(template) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid agent ID"})
 		return
@@ -633,7 +626,7 @@ func (m *Manager) miniProgramTaskResponse(task schema.MiniProgramAgentTask, toke
 			runtimeType = pod.RuntimeType
 		}
 	}
-	result := gin.H{"agentId": task.Template, "taskId": task.ID, "template": task.Template, "status": task.Status, "podId": task.PodID, "runtimeType": runtimeType, "createdAt": task.CreatedAt, "error": task.Error}
+	result := gin.H{"agentId": task.Template, "taskId": task.ID, "status": task.Status, "podId": task.PodID, "runtimeType": runtimeType, "createdAt": task.CreatedAt, "error": task.Error}
 	if task.QRCodeData != "" {
 		result["qrCodeUrl"] = task.QRCodeData
 		if !task.QRExpiresAt.IsZero() {
