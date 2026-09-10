@@ -101,6 +101,8 @@ func (WeixinBot) TableName() string { return "manager_weixin_bots" }
 // MiniProgramAgentTask is the public, token-protected view of Pod provisioning.
 // Sensitive Pod, wallet and iLink credentials remain in their owning tables.
 type MiniProgramAgentTask struct {
+	ModuleSnapshot  string    `json:"-"`
+	NameSnapshot    string    `json:"-"`
 	ID              string    `gorm:"primaryKey;size:80" json:"taskId"`
 	UserID          string    `gorm:"size:80;not null;index" json:"-"`
 	Template        string    `gorm:"size:64;not null;default:tax-agent;index" json:"template"`

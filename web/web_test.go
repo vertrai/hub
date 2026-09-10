@@ -15,7 +15,7 @@ func TestRegisterRoutes(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	RegisterRoutes(router, allowAll)
-	for _, path := range []string{"/admin", "/admin/users", "/admin/google", "/admin/browser", "/admin/xbot", "/admin/telegram", "/admin/weixin", "/admin/hymatrix", "/admin/hymatrix/eval", "/admin/hymatrix/weixin-reset", "/admin/test"} {
+	for _, path := range []string{"/admin", "/admin/agents", "/admin/users", "/admin/google", "/admin/browser", "/admin/xbot", "/admin/telegram", "/admin/weixin", "/admin/hymatrix", "/admin/hymatrix/eval", "/admin/hymatrix/weixin-reset", "/admin/test"} {
 		recorder := httptest.NewRecorder()
 		request := httptest.NewRequest(http.MethodGet, path, nil)
 		router.ServeHTTP(recorder, request)
@@ -82,7 +82,7 @@ func TestAdminPagesShareRuntimeHubBrandAndNavigation(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	RegisterRoutes(router, allowAll)
-	for _, path := range []string{"/admin", "/admin/users", "/admin/google", "/admin/browser", "/admin/xbot", "/admin/telegram", "/admin/weixin", "/admin/hymatrix", "/admin/test"} {
+	for _, path := range []string{"/admin", "/admin/agents", "/admin/users", "/admin/google", "/admin/browser", "/admin/xbot", "/admin/telegram", "/admin/weixin", "/admin/hymatrix", "/admin/test"} {
 		recorder := httptest.NewRecorder()
 		router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, path, nil))
 		body := recorder.Body.String()

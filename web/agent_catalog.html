@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>小程序助手目录</title>
+    <link rel="stylesheet" href="/admin/assets/common.css" />
+    <style>
+      .catalog-layout {
+        align-items: start;
+        display: grid;
+        grid-template-columns: minmax(260px, 1fr) minmax(360px, 1.4fr);
+        gap: 24px;
+      }
+      .catalog-item {
+        padding: 18px 0;
+        border-bottom: 1px solid #dde5ec;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+      .catalog-item img {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        object-fit: cover;
+      }
+      .catalog-item .copy {
+        flex: 1;
+        min-width: 0;
+      }
+      .catalog-item small {
+        display: block;
+        color: #66788a;
+        margin-top: 6px;
+      }
+      .catalog-form {
+        display: grid;
+        gap: 14px;
+      }
+      .catalog-form label {
+        display: grid;
+        gap: 6px;
+      }
+      .catalog-form textarea {
+        width: 100%;
+        min-height: 76px;
+        padding: 12px;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        font: inherit;
+      }
+      .catalog-form .row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+      }
+      .actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .note {
+        color: #607087;
+        line-height: 1.7;
+      }
+      .catalog-form input[type="checkbox"] {
+        width: auto;
+      }
+      .check {
+        display: flex !important;
+        align-items: center;
+      }
+      .catalog-item button {
+        white-space: nowrap;
+      }
+      @media (max-width: 950px) {
+        .catalog-layout {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="side">
+        <div class="brand">
+          <span>AGENT RUNTIME CONTROL</span><b>Agent Runtime Hub</b>
+        </div>
+        <!-- admin-navigation -->
+      </aside>
+      <main class="content">
+        <header class="page-head">
+          <div>
+            <h1>小程序助手目录</h1>
+            <p class="note">
+              维护助手介绍和上架状态。下架后，用户已有的助手仍可管理。
+            </p>
+          </div>
+        </header>
+        <div class="catalog-layout">
+          <section class="card">
+            <div class="actions">
+              <button id="new">新增助手</button
+              ><button id="refresh" class="secondary">刷新列表</button>
+            </div>
+            <p id="list-status" role="status"></p>
+            <div id="list"></div>
+          </section>
+          <section class="card">
+            <h2 id="form-title">新增助手</h2>
+            <form id="editor" class="catalog-form">
+              <div class="row">
+                <label
+                  >助手 ID<input
+                    name="id"
+                    required
+                    pattern="[a-z0-9][a-z0-9-]{0,63}"
+                    maxlength="64"
+                    placeholder="例如 travel-assistant" /></label
+                ><label
+                  >助手名称<input name="name" required maxlength="24"
+                /></label>
+              </div>
+              <p class="note">
+                ID 创建后不可修改。新增助手使用通用微信连接流程。
+              </p>
+              <label
+                >图标地址<input
+                  name="logoUrl"
+                  required
+                  placeholder="https://…" /></label
+              ><label>短标题<input name="kicker" maxlength="120" /></label
+              ><label
+                >列表介绍<textarea
+                  name="intro"
+                  required
+                  maxlength="2000"
+                ></textarea></label
+              ><label
+                >详细说明<textarea
+                  name="summary"
+                  maxlength="2000"
+                ></textarea></label
+              ><label
+                >助手能力（每行一项，最多 8 项）<textarea
+                  name="capabilities"
+                  required
+                ></textarea></label
+              ><label
+                >使用条件<textarea
+                  name="compatibilityNote"
+                  maxlength="2000"
+                  placeholder="例如需要用户另外连接的账号或服务"
+                ></textarea>
+              </label>
+              <details>
+                <summary>创建流程文案（选填，留空使用通用文案）</summary>
+                <label>登录提示<input name="loginCopy" maxlength="200" /></label
+                ><label>创建按钮<input name="ctaLabel" maxlength="40" /></label
+                ><label
+                  >能力准备提示<input
+                    name="capabilityCopy"
+                    maxlength="200" /></label
+                ><label
+                  >创建进度说明<textarea
+                    name="creationDetail"
+                    maxlength="2000"
+                  ></textarea>
+                </label>
+              </details>
+              <label
+                >Hymatrix 模块<input
+                  name="module"
+                  maxlength="512"
+                  placeholder="部署好的模块标识"
+              /></label>
+              <p class="note">
+                新增助手必须指定模块；两个内置助手留空时使用服务器现有配置。模块变更只用于之后创建的实例。
+              </p>
+              <div class="row">
+                <label
+                  >排序（数字越小越靠前）<input
+                    name="sortOrder"
+                    type="number"
+                    step="1"
+                    value="0"
+                    required /></label
+                ><label class="check"
+                  ><input
+                    name="published"
+                    type="checkbox"
+                  />上架，允许用户创建</label
+                >
+              </div>
+              <div class="actions">
+                <button id="save" type="submit">保存助手</button
+                ><button id="delete" type="button" class="secondary" hidden>
+                  删除未使用的助手
+                </button>
+              </div>
+              <p id="status" role="status"></p>
+            </form>
+          </section>
+        </div>
+      </main>
+    </div>
+    <script src="/admin/assets/common.js"></script>
+    <script>
+      let editing = null;
+      const fields = [
+        "id",
+        "name",
+        "logoUrl",
+        "kicker",
+        "intro",
+        "summary",
+        "compatibilityNote",
+        "loginCopy",
+        "ctaLabel",
+        "capabilityCopy",
+        "creationDetail",
+        "module",
+      ];
+      const form = $("editor");
+      function edit(a) {
+        editing = a || null;
+        form.reset();
+        for (const key of fields) form.elements[key].value = a?.[key] || "";
+        form.elements.id.readOnly = !!a;
+        form.elements.capabilities.value = (a?.capabilities || []).join("\n");
+        form.elements.sortOrder.value = a?.sortOrder || 0;
+        form.elements.published.checked = !!a?.published;
+        $("form-title").textContent = a ? "编辑 " + a.name : "新增助手";
+        $("delete").hidden = !a;
+        $("status").textContent = "";
+      }
+      async function refresh() {
+        try {
+          const data = await adminRequest("/v1/admin/agent-catalog");
+          $("list").replaceChildren();
+          for (const a of data.agents) {
+            const row = document.createElement("div");
+            row.className = "catalog-item";
+            const copy = document.createElement("div");
+            copy.className = "copy";
+            const title = document.createElement("strong");
+            title.textContent = a.name;
+            const meta = document.createElement("small");
+            meta.textContent = `${a.published ? "已上架" : "已下架"} · ${a.id} · 排序 ${a.sortOrder}`;
+            copy.append(title, meta);
+            const button = document.createElement("button");
+            button.className = "secondary";
+            button.textContent = "编辑";
+            button.onclick = () => edit(a);
+            row.append(copy, button);
+            $("list").append(row);
+          }
+          $("list-status").textContent = data.agents.length
+            ? `共 ${data.agents.length} 个助手`
+            : "暂无助手，请先新增。";
+        } catch (e) {
+          showStatus($("list-status"), e.message);
+        }
+      }
+      form.onsubmit = async (e) => {
+        e.preventDefault();
+        const a = {};
+        for (const key of fields) a[key] = form.elements[key].value.trim();
+        a.capabilities = form.elements.capabilities.value
+          .split("\n")
+          .map((s) => s.trim())
+          .filter(Boolean);
+        a.sortOrder = Number(form.elements.sortOrder.value);
+        a.published = form.elements.published.checked;
+        setBusy($("save"), true);
+        try {
+          const result = await adminRequest(
+            "/v1/admin/agent-catalog" +
+              (editing ? "/" + encodeURIComponent(editing.id) : ""),
+            { method: editing ? "PUT" : "POST", body: JSON.stringify(a) },
+          );
+          edit(result);
+          showStatus($("status"), "已保存。小程序下次加载目录时更新。", true);
+          await refresh();
+        } catch (e) {
+          showStatus($("status"), e.message);
+        } finally {
+          setBusy($("save"), false);
+        }
+      };
+      $("delete").onclick = async () => {
+        if (
+          !editing ||
+          !confirm("删除此助手配置？已有创建记录的助手不可删除。")
+        )
+          return;
+        setBusy($("delete"), true);
+        try {
+          await adminRequest(
+            "/v1/admin/agent-catalog/" + encodeURIComponent(editing.id),
+            { method: "DELETE" },
+          );
+          edit(null);
+          await refresh();
+        } catch (e) {
+          showStatus($("status"), e.message);
+        } finally {
+          setBusy($("delete"), false);
+        }
+      };
+      $("new").onclick = () => edit(null);
+      $("refresh").onclick = refresh;
+      refresh();
+    </script>
+  </body>
+</html>

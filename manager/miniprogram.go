@@ -104,18 +104,18 @@ func (m *Manager) spawnMiniProgramAgent(c *gin.Context) {
 	}
 	var input struct {
 		Template string `json:"template"`
+		AgentID  string `json:"agentId"`
 	}
 	if c.ShouldBindJSON(&input) != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
-	template, err := normalizeMiniProgramTemplate(input.Template)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+	template := strings.TrimSpace(input.AgentID)
+	if template == "" {
+		template = strings.TrimSpace(input.Template)
 	}
-	if err := validateMiniProgramTemplateConfig(m.config.MiniProgram, template); err != nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": err.Error()})
+	if !catalogID.MatchString(template) || (input.AgentID != "" && input.Template != "" && input.AgentID != input.Template) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid agent ID"})
 		return
 	}
 	_, tokenHash, err := newMiniProgramTaskToken()
@@ -123,8 +123,47 @@ func (m *Manager) spawnMiniProgramAgent(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "create task token"})
 		return
 	}
+	task, err := m.reserveMiniProgramAgentTask(userID, template, tokenHash)
+	if errors.Is(err, errMiniProgramAgentUnpublished) || errors.Is(err, gorm.ErrRecordNotFound) {
+		c.JSON(http.StatusConflict, gin.H{"error": "助手已下架或不存在，暂不可创建"})
+		return
+	}
+	if errors.Is(err, errMiniProgramAgentAlreadyActive) {
+		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		return
+	}
+	if errors.Is(err, errMiniProgramProvisionRateLimited) {
+		c.JSON(http.StatusTooManyRequests, gin.H{"error": err.Error()})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	go m.provisionMiniProgramAgentTask(task.ID)
+	c.Header("Cache-Control", "no-store")
+	c.JSON(http.StatusAccepted, m.miniProgramTaskResponse(task, ""))
+}
+
+func (m *Manager) reserveMiniProgramAgentTask(userID, template, tokenHash string) (schema.MiniProgramAgentTask, error) {
 	task := schema.MiniProgramAgentTask{ID: "mpt_" + strings.ReplaceAll(uuid.NewString(), "-", ""), UserID: userID, Template: template, TokenHash: tokenHash, Status: schema.MiniProgramTaskSpawning}
-	err = m.wdb.Db.Transaction(func(tx *gorm.DB) error {
+	err := m.wdb.Db.Transaction(func(tx *gorm.DB) error {
+		var definition schema.AgentCatalogEntry
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&definition, "id = ?", template).Error; err != nil {
+			return err
+		}
+		if !definition.Published {
+			return errMiniProgramAgentUnpublished
+		}
+		task.ModuleSnapshot = definition.Module
+		if task.ModuleSnapshot == "" {
+			task.ModuleSnapshot = miniProgramModuleForTemplate(m.config.MiniProgram, template)
+		}
+		if task.ModuleSnapshot == "" {
+			return errors.New("agent module is not configured")
+		}
+		task.NameSnapshot = definition.Name
+
 		var lockedUser schema.User
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&lockedUser, "id = ?", userID).Error; err != nil {
 			return err
@@ -145,24 +184,11 @@ func (m *Manager) spawnMiniProgramAgent(c *gin.Context) {
 		}
 		return tx.Create(&task).Error
 	})
-	if errors.Is(err, errMiniProgramAgentAlreadyActive) {
-		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
-		return
-	}
-	if errors.Is(err, errMiniProgramProvisionRateLimited) {
-		c.JSON(http.StatusTooManyRequests, gin.H{"error": err.Error()})
-		return
-	}
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	go m.provisionMiniProgramAgentTask(task.ID)
-	c.Header("Cache-Control", "no-store")
-	c.JSON(http.StatusAccepted, m.miniProgramTaskResponse(task, ""))
+	return task, err
 }
 
 var (
+	errMiniProgramAgentUnpublished     = errors.New("助手已下架")
 	errMiniProgramAgentAlreadyActive   = errors.New("该微信用户已经拥有正在创建或运行的 Agent")
 	errMiniProgramProvisionRateLimited = errors.New("创建次数过多，请一小时后重试")
 )
@@ -221,13 +247,16 @@ func (m *Manager) getCurrentMiniProgramAgent(c *gin.Context) {
 	if !ok {
 		return
 	}
-	template, err := normalizeMiniProgramTemplate(c.Query("template"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	template := c.Query("agentId")
+	if template == "" {
+		template = c.Query("template")
+	}
+	if !catalogID.MatchString(template) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid agent ID"})
 		return
 	}
 	var task schema.MiniProgramAgentTask
-	err = m.wdb.Db.Where("user_id = ? AND template = ?", userID, template).Order("created_at desc").First(&task).Error
+	err := m.wdb.Db.Where("user_id = ? AND template = ?", userID, template).Order("created_at desc").First(&task).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		c.Header("Cache-Control", "no-store")
 		c.JSON(http.StatusOK, gin.H{"task": nil})
@@ -387,7 +416,10 @@ func (m *Manager) provisionMiniProgramPod(ctx context.Context, task *schema.Mini
 		return fmt.Errorf("allocate LLM resource: %w", err)
 	}
 	cfg := m.config.MiniProgram
-	module := miniProgramModuleForTemplate(cfg, task.Template)
+	module := task.ModuleSnapshot
+	if module == "" {
+		module = miniProgramModuleForTemplate(cfg, task.Template)
+	}
 	if module == "" {
 		return fmt.Errorf("module is not configured for template %q", task.Template)
 	}
@@ -400,9 +432,9 @@ func (m *Manager) provisionMiniProgramPod(ctx context.Context, task *schema.Mini
 	if err != nil {
 		return err
 	}
-	podName := "财税助手"
-	if task.Template == miniProgramTemplateMicAI {
-		podName = "MicAI Minecraft 助手"
+	podName := task.NameSnapshot
+	if podName == "" {
+		podName = task.Template
 	}
 	pod := schema.HymatrixPod{ID: "pod_" + strings.ReplaceAll(uuid.NewString(), "-", ""), UserID: task.UserID, Name: podName, RuntimeType: cfg.RuntimeType, Status: schema.PodStatusSpawning, NodeURL: cfg.NodeURL, AdminURL: cfg.AdminURL, PrivateKey: cfg.PrivateKey, Module: module, Scheduler: hymatrixConfig.Scheduler, AccessKeyID: accessKey.ID}
 	pod.GatewayAPIKey = accessKey.Secret
@@ -496,7 +528,7 @@ func (m *Manager) exchangeMiniProgramCode(ctx context.Context, code string) (str
 }
 
 func validateMiniProgramConfig(cfg MiniProgramConfig) error {
-	values := map[string]string{"appId": cfg.AppID, "appSecret": cfg.AppSecret, "pod.nodeURL": cfg.NodeURL, "pod.privateKey": cfg.PrivateKey, "pod.taxModule": cfg.TaxModule, "pod.micaiModule": cfg.MicAIModule, "pod.runtimeType": cfg.RuntimeType, "agent.gatewayURL": cfg.GatewayURL, "agent.hermesGatewayToken": cfg.HermesGatewayToken}
+	values := map[string]string{"appId": cfg.AppID, "appSecret": cfg.AppSecret, "pod.nodeURL": cfg.NodeURL, "pod.privateKey": cfg.PrivateKey, "pod.runtimeType": cfg.RuntimeType, "agent.gatewayURL": cfg.GatewayURL, "agent.hermesGatewayToken": cfg.HermesGatewayToken}
 	for name, value := range values {
 		if strings.TrimSpace(value) == "" {
 			return fmt.Errorf("miniProgram.%s is not configured", name)
@@ -601,7 +633,7 @@ func (m *Manager) miniProgramTaskResponse(task schema.MiniProgramAgentTask, toke
 			runtimeType = pod.RuntimeType
 		}
 	}
-	result := gin.H{"taskId": task.ID, "template": task.Template, "status": task.Status, "podId": task.PodID, "runtimeType": runtimeType, "createdAt": task.CreatedAt, "error": task.Error}
+	result := gin.H{"agentId": task.Template, "taskId": task.ID, "template": task.Template, "status": task.Status, "podId": task.PodID, "runtimeType": runtimeType, "createdAt": task.CreatedAt, "error": task.Error}
 	if task.QRCodeData != "" {
 		result["qrCodeUrl"] = task.QRCodeData
 		if !task.QRExpiresAt.IsZero() {

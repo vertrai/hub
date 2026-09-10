@@ -33,6 +33,9 @@ var loginHTML []byte
 //go:embed test.html
 var testHTML []byte
 
+//go:embed agent_catalog.html
+var agentCatalogHTML []byte
+
 //go:embed users.html
 var usersHTML []byte
 
@@ -82,6 +85,7 @@ func RegisterRoutes(routes *gin.Engine, authentication gin.HandlerFunc) {
 	protected.GET("/admin", adminPage)
 	protected.GET("/admin/llm/test", func(c *gin.Context) { renderAdminDocument(c, llmTestHTML) })
 	protected.GET("/admin/llm", func(c *gin.Context) { renderAdminDocument(c, llmHTML) })
+	protected.GET("/admin/agents", func(c *gin.Context) { renderAdminDocument(c, agentCatalogHTML) })
 	protected.GET("/admin/users", func(c *gin.Context) { renderAdminDocument(c, usersHTML) })
 	protected.GET("/admin/google", func(c *gin.Context) { renderAdminDocument(c, googleHTML) })
 	protected.GET("/admin/browser", func(c *gin.Context) { renderAdminDocument(c, browserHTML) })
