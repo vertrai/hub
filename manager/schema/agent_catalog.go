@@ -25,3 +25,13 @@ type AgentCatalogEntry struct {
 }
 
 func (AgentCatalogEntry) TableName() string { return "manager_agent_catalog" }
+
+// Catalog images are durable Manager-owned assets, independent of the catalog lifecycle.
+type AgentCatalogImage struct {
+	ID          string `gorm:"primaryKey;size:64"`
+	ContentType string
+	Data        []byte
+	CreatedAt   time.Time
+}
+
+func (AgentCatalogImage) TableName() string { return "manager_agent_catalog_images" }

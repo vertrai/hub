@@ -24,7 +24,6 @@ type Config struct {
 type MiniProgramConfig struct {
 	AppID, AppSecret, WeixinAPIBase string
 	NodeURL, AdminURL, PrivateKey   string
-	TaxModule, MicAIModule          string
 	RuntimeType, GatewayURL         string
 	HermesGatewayToken              string
 }
@@ -65,6 +64,7 @@ type Manager struct {
 }
 
 func New(env string, config Config, wdb *Wdb) (*Manager, error) {
+
 	if config.Resources.Timeout <= 0 {
 		config.Resources.Timeout = 30 * time.Second
 	}
@@ -92,7 +92,7 @@ func New(env string, config Config, wdb *Wdb) (*Manager, error) {
 		weixinBaseURL:         "https://ilinkai.weixin.qq.com",
 		weixinClient:          &http.Client{Timeout: 15 * time.Second},
 		adminAuth:             auth,
-		miniProgramHTTPClient: &http.Client{Timeout: 10 * time.Second},
+		miniProgramHTTPClient: newMiniProgramHTTPClient(),
 		hymatrixAdminClient:   &http.Client{Timeout: 2 * time.Minute},
 	}, nil
 }

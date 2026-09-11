@@ -64,8 +64,8 @@ func TestMiniProgramProvisionAllocatesLLMBeforePod(t *testing.T) {
 				})}
 				// Empty runtime stops at Spawn validation, after the real Pod persistence,
 				// without creating a remote container or requiring a node SDK test double.
-				m.config.MiniProgram = MiniProgramConfig{NodeURL: "https://1.1.1.1", PrivateKey: strings.Repeat("0", 63) + "1", MicAIModule: "micai-module", TaxModule: "tax-module"}
-				task := schema.MiniProgramAgentTask{ID: "task", UserID: "wx-test", Template: template, Status: schema.MiniProgramTaskSpawning}
+				m.config.MiniProgram = MiniProgramConfig{NodeURL: "https://1.1.1.1", PrivateKey: strings.Repeat("0", 63) + "1"}
+				task := schema.MiniProgramAgentTask{ID: "task", UserID: "wx-test", Template: template, ModuleSnapshot: "configured-module", Status: schema.MiniProgramTaskSpawning}
 				if err := m.wdb.Db.Create(&task).Error; err != nil {
 					t.Fatal(err)
 				}
@@ -87,7 +87,7 @@ func TestMiniProgramProvisionAllocatesLLMBeforePod(t *testing.T) {
 				if pod.LLMAPIKey != resource.APIKey || pod.LLMAPIKey == "hub-test" || pod.LLMBaseURL != resource.BaseURL || pod.LLMModel != "hub-chat" || pod.LLMProvider != "custom" || pod.GatewayAPIKey != "hub-test" {
 					t.Fatal("Pod did not persist its Hub LLM configuration before Spawn")
 				}
-				if pod.Module != miniProgramModuleForTemplate(m.config.MiniProgram, template) {
+				if pod.Module != task.ModuleSnapshot {
 					t.Fatal("wrong template module")
 				}
 				var count int64

@@ -1,7 +1,9 @@
 package manager
 
 import (
+	"crypto/sha256"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -14,14 +16,6 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
-
-func seedAgentCatalog(db *gorm.DB) error {
-	entries := []schema.AgentCatalogEntry{
-		{ID: miniProgramTemplateTax, Name: "票账助手", LogoURL: "/assets/agents/jianbu-tax.png", Kicker: "来自简簿的票账智能助手", Intro: "整理票据、核对账目、归集材料，让日常票账整理更有条理。", Summary: "可以帮你整理票据信息、核对账目记录、归集相关材料。创建并连接微信后，就可以和助手对话。", Capabilities: []string{"票据整理", "账目核对", "材料归集"}, LoginCopy: "登录后即可创建你的专属票账助手。", CapabilityCopy: "准备票账助手能力", CreationDetail: "正在创建票账助手，完成后即可设置微信连接", CTALabel: "创建票账助手", Published: true, SortOrder: 10},
-		{ID: miniProgramTemplateMicAI, Name: "MC 助手", LogoURL: "/assets/agents/micai-agent.png", Kicker: "你的《我的世界》建造伙伴", Intro: "我叫 Mic，可以陪你探索世界、规划任务，一起协作建造。", Summary: "你可以在微信里告诉我想建什么，连接 Xbox 账号和游戏世界后，我就能进入你的世界，帮你探索、规划和建造。", Capabilities: []string{"世界探索", "建造规划", "协作建造"}, LoginCopy: "登录后即可创建你的专属 MC 助手。", CapabilityCopy: "准备 MC 助手能力", CreationDetail: "正在准备世界探索、建造规划和协作建造能力，请稍候", CTALabel: "创建 MC 助手", CompatibilityNote: "适用于《我的世界》基岩版，需完成 Xbox 和游戏世界连接", Published: true, SortOrder: 20},
-	}
-	return db.Clauses(clause.OnConflict{DoNothing: true}).Create(&entries).Error
-}
 
 var catalogID = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,63}$`)
 
@@ -48,7 +42,7 @@ func validateCatalogEntry(a schema.AgentCatalogEntry) error {
 	if strings.TrimSpace(a.Intro) == "" {
 		return errors.New("请填写助手介绍")
 	}
-	if a.LogoURL != "/assets/agents/jianbu-tax.png" && a.LogoURL != "/assets/agents/micai-agent.png" {
+	if !catalogImagePath.MatchString(a.LogoURL) {
 		u, err := url.Parse(a.LogoURL)
 		if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil {
 			return errors.New("图标请使用 HTTPS 图片地址")
@@ -57,7 +51,7 @@ func validateCatalogEntry(a schema.AgentCatalogEntry) error {
 	if len(a.Module) > 512 || strings.ContainsAny(a.Module, "\r\n") {
 		return errors.New("无效的模块标识")
 	}
-	if strings.TrimSpace(a.Module) == "" && a.ID != miniProgramTemplateTax && a.ID != miniProgramTemplateMicAI {
+	if strings.TrimSpace(a.Module) == "" {
 		return errors.New("请配置助手的 Hymatrix 模块")
 	}
 	return nil
@@ -97,21 +91,7 @@ func (m *Manager) getAgentCatalogEntry(c *gin.Context) {
 		catalogError(c, err)
 		return
 	}
-	if !a.Published {
-		userID, ok := m.requireMiniProgramSession(c)
-		if !ok {
-			return
-		}
-		var count int64
-		if err := m.wdb.Db.Model(&schema.MiniProgramAgentTask{}).Where("user_id = ? AND template = ?", userID, a.ID).Count(&count).Error; err != nil {
-			catalogError(c, err)
-			return
-		}
-		if count == 0 {
-			c.JSON(404, gin.H{"error": "助手已下架"})
-			return
-		}
-	}
+	// Publication controls marketplace discovery only; direct details remain public.
 	c.Header("Cache-Control", "no-store")
 	c.JSON(200, publicCatalogEntry(a))
 }
@@ -125,7 +105,7 @@ func (m *Manager) listMyMiniProgramAgents(c *gin.Context) {
 	}
 	var tasks []schema.MiniProgramAgentTask
 	// Match the existing one-current-instance-per-agent contract, including failed attempts.
-	err := m.wdb.Db.Raw(`SELECT DISTINCT ON (template) * FROM manager_mini_program_agent_tasks WHERE user_id = ? ORDER BY template, created_at DESC, id DESC`, userID).Scan(&tasks).Error
+	err := m.wdb.Db.Raw(`SELECT * FROM (SELECT DISTINCT ON (template) * FROM manager_mini_program_agent_tasks WHERE user_id = ? ORDER BY template, created_at DESC, id DESC) latest WHERE deleted_at IS NULL`, userID).Scan(&tasks).Error
 	if err != nil {
 		catalogError(c, err)
 		return
@@ -178,6 +158,9 @@ func (m *Manager) adminSaveAgentCatalog(c *gin.Context) {
 		c.JSON(400, gin.H{"error": "无效的助手配置"})
 		return
 	}
+	if c.Request.Method == http.MethodPost && a.ID == "" {
+		a.ID = generatedCatalogID(a.Name)
+	}
 	a.Module = strings.TrimSpace(a.Module)
 	if err := validateCatalogEntry(a); err != nil {
 		c.JSON(400, gin.H{"error": err.Error()})
@@ -187,10 +170,6 @@ func (m *Manager) adminSaveAgentCatalog(c *gin.Context) {
 		c.JSON(400, gin.H{"error": "助手 ID 不可修改"})
 		return
 	}
-	if a.Published && a.Module == "" && miniProgramModuleForTemplate(m.config.MiniProgram, a.ID) == "" {
-		c.JSON(400, gin.H{"error": "请先配置助手模块再上架"})
-		return
-	}
 	var err error
 	if c.Request.Method == http.MethodPost {
 		a.CreatedAt = time.Time{}
@@ -198,7 +177,7 @@ func (m *Manager) adminSaveAgentCatalog(c *gin.Context) {
 		result := m.wdb.Db.Clauses(clause.OnConflict{DoNothing: true}).Create(&a)
 		err = result.Error
 		if err == nil && result.RowsAffected == 0 {
-			c.JSON(409, gin.H{"error": "助手 ID 已存在"})
+			c.JSON(409, gin.H{"error": "已有同名助手或相同 ID，请编辑已有助手或修改名称"})
 			return
 		}
 	} else {
@@ -226,14 +205,11 @@ func (m *Manager) adminDeleteAgentCatalog(c *gin.Context) {
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&a, "id = ?", c.Param("id")).Error; err != nil {
 			return err
 		}
-		if a.ID == miniProgramTemplateTax || a.ID == miniProgramTemplateMicAI {
-			return errors.New("内置初始化助手请使用下架，避免重启时重新生成配置")
-		}
 		if a.Published {
 			return errors.New("请先下架助手")
 		}
 		var count int64
-		if err := tx.Model(&schema.MiniProgramAgentTask{}).Where("template = ?", a.ID).Count(&count).Error; err != nil {
+		if err := tx.Unscoped().Model(&schema.MiniProgramAgentTask{}).Where("template = ?", a.ID).Count(&count).Error; err != nil {
 			return err
 		}
 		if count > 0 {
@@ -246,4 +222,19 @@ func (m *Manager) adminDeleteAgentCatalog(c *gin.Context) {
 		return
 	}
 	c.JSON(200, gin.H{"deleted": true})
+}
+
+// Preserve existing IDs on update; names in any language generate a stable valid ID.
+func generatedCatalogID(name string) string {
+	normalized := strings.ToLower(strings.TrimSpace(name))
+	slug := regexp.MustCompile(`[^a-z0-9]+`).ReplaceAllString(normalized, "-")
+	slug = strings.Trim(slug, "-")
+	if len(slug) > 40 {
+		slug = strings.TrimRight(slug[:40], "-")
+	}
+	if slug == "" {
+		slug = "agent"
+	}
+	sum := sha256.Sum256([]byte(normalized))
+	return fmt.Sprintf("%s-%x", slug, sum[:8])
 }

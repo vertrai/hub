@@ -23,16 +23,8 @@ func NewWdb(dsn string) (*Wdb, error) {
 	if err := w.renameLegacyTables(); err != nil {
 		return nil, err
 	}
-	if err := w.Db.AutoMigrate(&schema.XboxChild{}, &schema.LLMRoute{}, &schema.LLMResourceSettings{}, &schema.LLMProvider{}, &schema.LLMKey{}, &schema.User{}, &schema.AccessKey{}, &schema.HymatrixPod{}, &schema.WeixinBot{}, &schema.MiniProgramAgentTask{}, &schema.AgentCatalogEntry{}); err != nil {
+	if err := w.Db.AutoMigrate(&schema.XboxChild{}, &schema.LLMRoute{}, &schema.LLMResourceSettings{}, &schema.LLMProvider{}, &schema.LLMKey{}, &schema.User{}, &schema.AccessKey{}, &schema.HymatrixPod{}, &schema.WeixinBot{}, &schema.MiniProgramAgentTask{}, &schema.AgentCatalogEntry{}, &schema.AgentCatalogImage{}); err != nil {
 		return nil, fmt.Errorf("migrate postgres: %w", err)
-	}
-	if err := seedAgentCatalog(w.Db); err != nil {
-		return nil, fmt.Errorf("seed agent catalog: %w", err)
-	}
-	// Before business templates were introduced, tax-agent tasks were stored as
-	// either an empty value or the runtime implementation name "hermes".
-	if err := w.Db.Model(&schema.MiniProgramAgentTask{}).Where("template = '' OR template = ?", "hermes").Update("template", "tax-agent").Error; err != nil {
-		return nil, fmt.Errorf("migrate legacy mini-program task templates: %w", err)
 	}
 	// AccessKeyID identifies both current and historical Pod attempts. The
 	// AccessKey.AssignedPodID unique index enforces the single active assignment;

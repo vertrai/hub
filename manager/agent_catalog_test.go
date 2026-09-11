@@ -27,7 +27,7 @@ func catalogFixture(t *testing.T) *Manager {
 	}
 	sqlDB, _ := db.DB()
 	t.Cleanup(func() { sqlDB.Close() })
-	if err = db.AutoMigrate(&schema.User{}, &schema.MiniProgramAgentTask{}, &schema.AgentCatalogEntry{}, &schema.HymatrixPod{}); err != nil {
+	if err = db.AutoMigrate(&schema.User{}, &schema.MiniProgramAgentTask{}, &schema.AgentCatalogEntry{}, &schema.AgentCatalogImage{}, &schema.HymatrixPod{}); err != nil {
 		t.Fatal(err)
 	}
 	tx := db.Begin()
@@ -43,7 +43,7 @@ func catalogFixture(t *testing.T) *Manager {
 			t.Fatal(err)
 		}
 	}
-	return &Manager{wdb: &Wdb{Db: tx}, config: Config{MiniProgram: MiniProgramConfig{AppSecret: "test", TaxModule: "tax-module", MicAIModule: "mc-module"}}}
+	return &Manager{wdb: &Wdb{Db: tx}, config: Config{MiniProgram: MiniProgramConfig{AppSecret: "test"}}}
 }
 func catalogRequest(m *Manager, method, path, body, user string, handler gin.HandlerFunc, params gin.Params) *httptest.ResponseRecorder {
 	rec := httptest.NewRecorder()
@@ -82,8 +82,8 @@ func TestCatalogLifecycleAndOwnership(t *testing.T) {
 	if rec.Code != 200 {
 		t.Fatal(rec.Body.String())
 	}
-	if _, err = m.reserveMiniProgramAgentTask("wx_catalog_other", entry.ID, "hash"); !errors.Is(err, errMiniProgramAgentUnpublished) {
-		t.Fatalf("unpublished agent created: %v", err)
+	if _, err = m.reserveMiniProgramAgentTask("wx_catalog_other", entry.ID, "hash"); err != nil {
+		t.Fatalf("unlisted agent could not be created directly: %v", err)
 	}
 	var persisted schema.MiniProgramAgentTask
 	m.wdb.Db.First(&persisted, "id = ?", task.ID)
@@ -105,7 +105,7 @@ func TestCatalogLifecycleAndOwnership(t *testing.T) {
 	for _, tc := range []struct {
 		user string
 		want int
-	}{{"wx_catalog_owner", 200}, {"wx_catalog_other", 404}, {"", 401}} {
+	}{{"wx_catalog_owner", 200}, {"wx_catalog_other", 200}, {"", 200}} {
 		rec = catalogRequest(m, "GET", "/", "", tc.user, m.getAgentCatalogEntry, gin.Params{{Key: "id", Value: entry.ID}})
 		if rec.Code != tc.want {
 			t.Fatalf("detail user=%s status=%d body=%s", tc.user, rec.Code, rec.Body.String())
@@ -118,24 +118,6 @@ func TestCatalogLifecycleAndOwnership(t *testing.T) {
 	rec = catalogRequest(m, "GET", "/", "", "wx_catalog_other", m.getMiniProgramAgent, gin.Params{{Key: "taskId", Value: task.ID}})
 	if rec.Code != 404 {
 		t.Fatal("cross-user task access")
-	}
-}
-func TestCatalogSeedDoesNotRepublishAndInitialAgentsRouteCorrectly(t *testing.T) {
-	m := catalogFixture(t)
-	for _, id := range []string{miniProgramTemplateTax, miniProgramTemplateMicAI} {
-		task, err := m.reserveMiniProgramAgentTask("wx_catalog_owner", id, "hash")
-		if err != nil || task.ModuleSnapshot == "" {
-			t.Fatalf("initial agent %s: %v", id, err)
-		}
-	}
-	m.wdb.Db.Model(&schema.AgentCatalogEntry{}).Where("id = ?", miniProgramTemplateTax).Updates(map[string]any{"published": false, "name": "定制名称"})
-	if err := seedAgentCatalog(m.wdb.Db); err != nil {
-		t.Fatal(err)
-	}
-	var a schema.AgentCatalogEntry
-	m.wdb.Db.First(&a, "id = ?", miniProgramTemplateTax)
-	if a.Published || a.Name != "定制名称" {
-		t.Fatal("seed overwrote admin changes")
 	}
 }
 func TestCatalogValidation(t *testing.T) {
@@ -186,5 +168,87 @@ func TestCatalogCurrentRequiresAgentID(t *testing.T) {
 	}
 	if _, exists := payload["template"]; exists {
 		t.Fatal("legacy response field retained")
+	}
+}
+
+func TestCatalogDeleteFailedAndRecreate(t *testing.T) {
+	m := catalogFixture(t)
+	task, err := m.reserveMiniProgramAgentTask("wx_catalog_owner", miniProgramTemplateTax, "hash")
+	if err != nil {
+		t.Fatal(err)
+	}
+	params := gin.Params{{Key: "taskId", Value: task.ID}}
+	rec := catalogRequest(m, "DELETE", "/", "", "wx_catalog_other", m.deleteFailedMiniProgramAgent, params)
+	if rec.Code != 404 {
+		t.Fatal("cross-user deletion accepted")
+	}
+	rec = catalogRequest(m, "DELETE", "/", "", "wx_catalog_owner", m.deleteFailedMiniProgramAgent, params)
+	if rec.Code != 409 {
+		t.Fatal("active task deletion accepted")
+	}
+	m.wdb.Db.Model(&task).Updates(map[string]any{"status": schema.MiniProgramTaskFailed, "pod_id": "failed-pod"})
+	rec = catalogRequest(m, "DELETE", "/", "", "wx_catalog_owner", m.deleteFailedMiniProgramAgent, params)
+	if rec.Code != 200 {
+		t.Fatal(rec.Body.String())
+	}
+	rec = catalogRequest(m, "GET", "/", "", "wx_catalog_owner", m.listMyMiniProgramAgents, nil)
+	if strings.Contains(rec.Body.String(), task.ID) {
+		t.Fatal("deleted task remains visible")
+	}
+	rec = catalogRequest(m, "GET", "/?agentId=tax-agent", "", "wx_catalog_owner", m.getCurrentMiniProgramAgent, nil)
+	if !strings.Contains(rec.Body.String(), `"task":null`) {
+		t.Fatal(rec.Body.String())
+	}
+	replacement, err := m.reserveMiniProgramAgentTask("wx_catalog_owner", miniProgramTemplateTax, "hash")
+	if err != nil || replacement.ID == task.ID {
+		t.Fatalf("cannot recreate: %v", err)
+	}
+	var retained schema.MiniProgramAgentTask
+	if err := m.wdb.Db.Unscoped().First(&retained, "id = ?", task.ID).Error; err != nil || !retained.DeletedAt.Valid {
+		t.Fatal("failure history lost")
+	}
+	m.wdb.Db.Model(&replacement).Update("status", schema.MiniProgramTaskFailed)
+	catalogRequest(m, "DELETE", "/", "", "wx_catalog_owner", m.deleteFailedMiniProgramAgent, gin.Params{{Key: "taskId", Value: replacement.ID}})
+	third, err := m.reserveMiniProgramAgentTask("wx_catalog_owner", miniProgramTemplateTax, "hash")
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.wdb.Db.Model(&third).Update("status", schema.MiniProgramTaskFailed)
+	catalogRequest(m, "DELETE", "/", "", "wx_catalog_owner", m.deleteFailedMiniProgramAgent, gin.Params{{Key: "taskId", Value: third.ID}})
+	if _, err := m.reserveMiniProgramAgentTask("wx_catalog_owner", miniProgramTemplateTax, "hash"); !errors.Is(err, errMiniProgramProvisionRateLimited) {
+		t.Fatal("deletion bypassed rate limit")
+	}
+}
+
+const miniProgramTemplateTax = "tax-agent"
+const miniProgramTemplateMicAI = "micai-agent"
+
+// Test data only: production starts with an empty catalog.
+func seedAgentCatalog(db *gorm.DB) error {
+	for _, id := range []string{miniProgramTemplateTax, miniProgramTemplateMicAI} {
+		entry := schema.AgentCatalogEntry{ID: id, Name: id, Intro: "test", LogoURL: "https://example.com/icon.png", Capabilities: []string{"test"}, Module: "configured-" + id, Published: true}
+		if err := db.Create(&entry).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func TestCatalogFormerBuiltinEntriesFollowOrdinaryRules(t *testing.T) {
+	m := catalogFixture(t)
+	for _, id := range []string{"tax-agent", "micai-agent"} {
+		var entry schema.AgentCatalogEntry
+		if err := m.wdb.Db.First(&entry, "id = ?", id).Error; err != nil {
+			t.Fatal(err)
+		}
+		entry.Module = ""
+		if validateCatalogEntry(entry) == nil {
+			t.Fatal("missing module accepted for former built-in")
+		}
+		m.wdb.Db.Model(&entry).Update("published", false)
+		rec := catalogRequest(m, "DELETE", "/", "", "", m.adminDeleteAgentCatalog, gin.Params{{Key: "id", Value: id}})
+		if rec.Code != 200 {
+			t.Fatal(rec.Body.String())
+		}
 	}
 }

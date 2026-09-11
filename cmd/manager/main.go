@@ -73,7 +73,7 @@ func run(_ *cli.Context) error {
 		},
 		MiniProgram: manager.MiniProgramConfig{
 			AppID: viper.GetString("miniProgram.appId"), AppSecret: viper.GetString("miniProgram.appSecret"), WeixinAPIBase: viper.GetString("miniProgram.weixinAPIBase"),
-			NodeURL: viper.GetString("miniProgram.pod.nodeURL"), AdminURL: viper.GetString("miniProgram.pod.adminURL"), PrivateKey: viper.GetString("miniProgram.pod.privateKey"), TaxModule: viper.GetString("miniProgram.pod.taxModule"), MicAIModule: viper.GetString("miniProgram.pod.micaiModule"), RuntimeType: viper.GetString("miniProgram.pod.runtimeType"),
+			NodeURL: viper.GetString("miniProgram.pod.nodeURL"), AdminURL: viper.GetString("miniProgram.pod.adminURL"), PrivateKey: viper.GetString("miniProgram.pod.privateKey"), RuntimeType: viper.GetString("miniProgram.pod.runtimeType"),
 			GatewayURL: viper.GetString("miniProgram.agent.gatewayURL"), HermesGatewayToken: viper.GetString("miniProgram.agent.hermesGatewayToken"),
 		},
 	}, wdb)
