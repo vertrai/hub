@@ -26,37 +26,6 @@ import (
 
 const miniProgramSessionLifetime = 30 * 24 * time.Hour
 
-const (
-	miniProgramTemplateTax   = "tax-agent"
-	miniProgramTemplateMicAI = "micai-agent"
-)
-
-func normalizeMiniProgramTemplate(value string) (string, error) {
-	template := strings.TrimSpace(value)
-	if template != miniProgramTemplateTax && template != miniProgramTemplateMicAI {
-		return "", errors.New("unsupported agent template")
-	}
-	return template, nil
-}
-
-func miniProgramModuleForTemplate(cfg MiniProgramConfig, template string) string {
-	modules := map[string]string{
-		miniProgramTemplateTax:   cfg.TaxModule,
-		miniProgramTemplateMicAI: cfg.MicAIModule,
-	}
-	return strings.TrimSpace(modules[template])
-}
-
-func validateMiniProgramTemplateConfig(cfg MiniProgramConfig, template string) error {
-	if miniProgramModuleForTemplate(cfg, template) == "" {
-		if template == miniProgramTemplateMicAI {
-			return errors.New("miniProgram.pod.micaiModule is not configured")
-		}
-		return errors.New("miniProgram.pod.taxModule is not configured")
-	}
-	return nil
-}
-
 func (m *Manager) loginMiniProgramUser(c *gin.Context) {
 	if m.wdb == nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "manager database is unavailable"})
@@ -103,19 +72,15 @@ func (m *Manager) spawnMiniProgramAgent(c *gin.Context) {
 		return
 	}
 	var input struct {
-		Template string `json:"template"`
+		AgentID string `json:"agentId"`
 	}
 	if c.ShouldBindJSON(&input) != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
-	template, err := normalizeMiniProgramTemplate(input.Template)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	if err := validateMiniProgramTemplateConfig(m.config.MiniProgram, template); err != nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": err.Error()})
+	template := strings.TrimSpace(input.AgentID)
+	if !catalogID.MatchString(template) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid agent ID"})
 		return
 	}
 	_, tokenHash, err := newMiniProgramTaskToken()
@@ -123,28 +88,11 @@ func (m *Manager) spawnMiniProgramAgent(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "create task token"})
 		return
 	}
-	task := schema.MiniProgramAgentTask{ID: "mpt_" + strings.ReplaceAll(uuid.NewString(), "-", ""), UserID: userID, Template: template, TokenHash: tokenHash, Status: schema.MiniProgramTaskSpawning}
-	err = m.wdb.Db.Transaction(func(tx *gorm.DB) error {
-		var lockedUser schema.User
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&lockedUser, "id = ?", userID).Error; err != nil {
-			return err
-		}
-		var activeTasks int64
-		if err := tx.Model(&schema.MiniProgramAgentTask{}).Where("user_id = ? AND template = ? AND (pod_id <> '' OR status = ?)", userID, template, schema.MiniProgramTaskSpawning).Count(&activeTasks).Error; err != nil {
-			return err
-		}
-		if activeTasks > 0 {
-			return errMiniProgramAgentAlreadyActive
-		}
-		var recentAttempts int64
-		if err := tx.Model(&schema.MiniProgramAgentTask{}).Where("user_id = ? AND template = ? AND created_at >= ?", userID, template, time.Now().UTC().Add(-time.Hour)).Count(&recentAttempts).Error; err != nil {
-			return err
-		}
-		if recentAttempts >= 3 {
-			return errMiniProgramProvisionRateLimited
-		}
-		return tx.Create(&task).Error
-	})
+	task, err := m.reserveMiniProgramAgentTask(userID, template, tokenHash)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		c.JSON(http.StatusConflict, gin.H{"error": "助手不存在，暂不可创建"})
+		return
+	}
 	if errors.Is(err, errMiniProgramAgentAlreadyActive) {
 		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 		return
@@ -160,6 +108,42 @@ func (m *Manager) spawnMiniProgramAgent(c *gin.Context) {
 	go m.provisionMiniProgramAgentTask(task.ID)
 	c.Header("Cache-Control", "no-store")
 	c.JSON(http.StatusAccepted, m.miniProgramTaskResponse(task, ""))
+}
+
+func (m *Manager) reserveMiniProgramAgentTask(userID, template, tokenHash string) (schema.MiniProgramAgentTask, error) {
+	task := schema.MiniProgramAgentTask{ID: "mpt_" + strings.ReplaceAll(uuid.NewString(), "-", ""), UserID: userID, Template: template, TokenHash: tokenHash, Status: schema.MiniProgramTaskSpawning}
+	err := m.wdb.Db.Transaction(func(tx *gorm.DB) error {
+		var definition schema.AgentCatalogEntry
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&definition, "id = ?", template).Error; err != nil {
+			return err
+		}
+		task.ModuleSnapshot = definition.Module
+		if task.ModuleSnapshot == "" {
+			return errors.New("agent module is not configured")
+		}
+		task.NameSnapshot = definition.Name
+
+		var lockedUser schema.User
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&lockedUser, "id = ?", userID).Error; err != nil {
+			return err
+		}
+		var activeTasks int64
+		if err := tx.Model(&schema.MiniProgramAgentTask{}).Where("user_id = ? AND template = ? AND (pod_id <> '' OR status = ?)", userID, template, schema.MiniProgramTaskSpawning).Count(&activeTasks).Error; err != nil {
+			return err
+		}
+		if activeTasks > 0 {
+			return errMiniProgramAgentAlreadyActive
+		}
+		var recentAttempts int64
+		if err := tx.Unscoped().Model(&schema.MiniProgramAgentTask{}).Where("user_id = ? AND template = ? AND created_at >= ?", userID, template, time.Now().UTC().Add(-time.Hour)).Count(&recentAttempts).Error; err != nil {
+			return err
+		}
+		if recentAttempts >= 3 {
+			return errMiniProgramProvisionRateLimited
+		}
+		return tx.Create(&task).Error
+	})
+	return task, err
 }
 
 var (
@@ -221,13 +205,18 @@ func (m *Manager) getCurrentMiniProgramAgent(c *gin.Context) {
 	if !ok {
 		return
 	}
-	template, err := normalizeMiniProgramTemplate(c.Query("template"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	template := c.Query("agentId")
+	if !catalogID.MatchString(template) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid agent ID"})
 		return
 	}
 	var task schema.MiniProgramAgentTask
-	err = m.wdb.Db.Where("user_id = ? AND template = ?", userID, template).Order("created_at desc").First(&task).Error
+	err := m.wdb.Db.Unscoped().Where("user_id = ? AND template = ?", userID, template).Order("created_at desc, id desc").First(&task).Error
+	if err == nil && task.DeletedAt.Valid {
+		c.Header("Cache-Control", "no-store")
+		c.JSON(200, gin.H{"task": nil})
+		return
+	}
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		c.Header("Cache-Control", "no-store")
 		c.JSON(http.StatusOK, gin.H{"task": nil})
@@ -387,7 +376,7 @@ func (m *Manager) provisionMiniProgramPod(ctx context.Context, task *schema.Mini
 		return fmt.Errorf("allocate LLM resource: %w", err)
 	}
 	cfg := m.config.MiniProgram
-	module := miniProgramModuleForTemplate(cfg, task.Template)
+	module := task.ModuleSnapshot
 	if module == "" {
 		return fmt.Errorf("module is not configured for template %q", task.Template)
 	}
@@ -400,9 +389,9 @@ func (m *Manager) provisionMiniProgramPod(ctx context.Context, task *schema.Mini
 	if err != nil {
 		return err
 	}
-	podName := "财税助手"
-	if task.Template == miniProgramTemplateMicAI {
-		podName = "MicAI Minecraft 助手"
+	podName := task.NameSnapshot
+	if podName == "" {
+		podName = task.Template
 	}
 	pod := schema.HymatrixPod{ID: "pod_" + strings.ReplaceAll(uuid.NewString(), "-", ""), UserID: task.UserID, Name: podName, RuntimeType: cfg.RuntimeType, Status: schema.PodStatusSpawning, NodeURL: cfg.NodeURL, AdminURL: cfg.AdminURL, PrivateKey: cfg.PrivateKey, Module: module, Scheduler: hymatrixConfig.Scheduler, AccessKeyID: accessKey.ID}
 	pod.GatewayAPIKey = accessKey.Secret
@@ -474,14 +463,30 @@ func (m *Manager) startMiniProgramPod(ctx context.Context, task *schema.MiniProg
 	return m.wdb.Db.Save(&pod).Error
 }
 
+// The official WeChat API is reachable directly; local development proxy
+// variables must not route login through an unavailable desktop proxy.
+func newMiniProgramHTTPClient() *http.Client {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.Proxy = func(req *http.Request) (*url.URL, error) {
+		if strings.EqualFold(req.URL.Hostname(), "api.weixin.qq.com") {
+			return nil, nil
+		}
+		return http.ProxyFromEnvironment(req)
+	}
+	return &http.Client{Transport: transport, Timeout: 10 * time.Second}
+}
+
 func (m *Manager) exchangeMiniProgramCode(ctx context.Context, code string) (string, error) {
 	cfg := m.config.MiniProgram
 	base := strings.TrimRight(cfg.WeixinAPIBase, "/")
 	endpoint := base + "/sns/jscode2session?" + url.Values{"appid": {cfg.AppID}, "secret": {cfg.AppSecret}, "js_code": {code}, "grant_type": {"authorization_code"}}.Encode()
-	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return "", errors.New("微信登录服务地址配置无效")
+	}
 	res, err := m.miniProgramHTTPClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("WeChat login: %w", err)
+		return "", errors.New("连接微信登录服务失败，请检查 Manager 网络连接后重试")
 	}
 	defer res.Body.Close()
 	var payload struct {
@@ -490,13 +495,13 @@ func (m *Manager) exchangeMiniProgramCode(ctx context.Context, code string) (str
 		ErrMsg  string `json:"errmsg"`
 	}
 	if json.NewDecoder(res.Body).Decode(&payload) != nil || res.StatusCode/100 != 2 || payload.ErrCode != 0 || payload.OpenID == "" {
-		return "", fmt.Errorf("WeChat login rejected: %s", payload.ErrMsg)
+		return "", fmt.Errorf("微信登录失败（错误码 %d），请重试或检查 Manager 小程序配置", payload.ErrCode)
 	}
 	return payload.OpenID, nil
 }
 
 func validateMiniProgramConfig(cfg MiniProgramConfig) error {
-	values := map[string]string{"appId": cfg.AppID, "appSecret": cfg.AppSecret, "pod.nodeURL": cfg.NodeURL, "pod.privateKey": cfg.PrivateKey, "pod.taxModule": cfg.TaxModule, "pod.micaiModule": cfg.MicAIModule, "pod.runtimeType": cfg.RuntimeType, "agent.gatewayURL": cfg.GatewayURL, "agent.hermesGatewayToken": cfg.HermesGatewayToken}
+	values := map[string]string{"appId": cfg.AppID, "appSecret": cfg.AppSecret, "pod.nodeURL": cfg.NodeURL, "pod.privateKey": cfg.PrivateKey, "pod.runtimeType": cfg.RuntimeType, "agent.gatewayURL": cfg.GatewayURL, "agent.hermesGatewayToken": cfg.HermesGatewayToken}
 	for name, value := range values {
 		if strings.TrimSpace(value) == "" {
 			return fmt.Errorf("miniProgram.%s is not configured", name)
@@ -601,7 +606,7 @@ func (m *Manager) miniProgramTaskResponse(task schema.MiniProgramAgentTask, toke
 			runtimeType = pod.RuntimeType
 		}
 	}
-	result := gin.H{"taskId": task.ID, "template": task.Template, "status": task.Status, "podId": task.PodID, "runtimeType": runtimeType, "createdAt": task.CreatedAt, "error": task.Error}
+	result := gin.H{"agentId": task.Template, "taskId": task.ID, "status": task.Status, "podId": task.PodID, "runtimeType": runtimeType, "createdAt": task.CreatedAt, "error": task.Error}
 	if task.QRCodeData != "" {
 		result["qrCodeUrl"] = task.QRCodeData
 		if !task.QRExpiresAt.IsZero() {
@@ -612,4 +617,29 @@ func (m *Manager) miniProgramTaskResponse(task schema.MiniProgramAgentTask, toke
 		result["taskToken"] = token
 	}
 	return result
+}
+
+func (m *Manager) deleteFailedMiniProgramAgent(c *gin.Context) {
+	if !m.catalogDB(c) {
+		return
+	}
+	userID, ok := m.requireMiniProgramSession(c)
+	if !ok {
+		return
+	}
+	var task schema.MiniProgramAgentTask
+	if err := m.wdb.Db.First(&task, "id = ? AND user_id = ?", c.Param("taskId"), userID).Error; err != nil {
+		catalogError(c, err)
+		return
+	}
+	result := m.wdb.Db.Where("id = ? AND user_id = ? AND status = ?", task.ID, userID, schema.MiniProgramTaskFailed).Delete(&schema.MiniProgramAgentTask{})
+	if result.Error != nil {
+		catalogError(c, result.Error)
+		return
+	}
+	if result.RowsAffected == 0 {
+		c.JSON(409, gin.H{"error": "只能删除创建失败的助手，请刷新状态"})
+		return
+	}
+	c.JSON(200, gin.H{"deleted": true})
 }

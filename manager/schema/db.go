@@ -1,6 +1,9 @@
 package schema
 
-import "time"
+import (
+	"gorm.io/gorm"
+	"time"
+)
 
 const (
 	PodStatusSpawning = "spawning"
@@ -101,18 +104,21 @@ func (WeixinBot) TableName() string { return "manager_weixin_bots" }
 // MiniProgramAgentTask is the public, token-protected view of Pod provisioning.
 // Sensitive Pod, wallet and iLink credentials remain in their owning tables.
 type MiniProgramAgentTask struct {
-	ID              string    `gorm:"primaryKey;size:80" json:"taskId"`
-	UserID          string    `gorm:"size:80;not null;index" json:"-"`
-	Template        string    `gorm:"size:64;not null;default:tax-agent;index" json:"template"`
-	PodID           string    `gorm:"size:80;index" json:"podId,omitempty"`
-	WeixinAttemptID string    `gorm:"size:80" json:"-"`
-	TokenHash       string    `gorm:"size:64;not null" json:"-"`
-	Status          string    `gorm:"size:32;not null;index" json:"status"`
-	QRCodeData      string    `gorm:"type:text" json:"qrCodeUrl,omitempty"`
-	QRExpiresAt     time.Time `json:"qrExpiresAt,omitempty"`
-	Error           string    `gorm:"type:text" json:"error,omitempty"`
-	CreatedAt       time.Time `json:"createdAt"`
-	UpdatedAt       time.Time `json:"updatedAt"`
+	DeletedAt       gorm.DeletedAt `gorm:"index" json:"-"`
+	ModuleSnapshot  string         `json:"-"`
+	NameSnapshot    string         `json:"-"`
+	ID              string         `gorm:"primaryKey;size:80" json:"taskId"`
+	UserID          string         `gorm:"size:80;not null;index" json:"-"`
+	Template        string         `gorm:"size:64;not null;index" json:"template"`
+	PodID           string         `gorm:"size:80;index" json:"podId,omitempty"`
+	WeixinAttemptID string         `gorm:"size:80" json:"-"`
+	TokenHash       string         `gorm:"size:64;not null" json:"-"`
+	Status          string         `gorm:"size:32;not null;index" json:"status"`
+	QRCodeData      string         `gorm:"type:text" json:"qrCodeUrl,omitempty"`
+	QRExpiresAt     time.Time      `json:"qrExpiresAt,omitempty"`
+	Error           string         `gorm:"type:text" json:"error,omitempty"`
+	CreatedAt       time.Time      `json:"createdAt"`
+	UpdatedAt       time.Time      `json:"updatedAt"`
 }
 
 func (MiniProgramAgentTask) TableName() string { return "manager_mini_program_agent_tasks" }

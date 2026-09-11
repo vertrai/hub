@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -77,50 +78,10 @@ func TestMiniProgramConfigRejectsMissingServerSecrets(t *testing.T) {
 	}
 }
 
-func TestMiniProgramAgentTemplateSelectsModule(t *testing.T) {
-	cfg := MiniProgramConfig{TaxModule: "tax-module", MicAIModule: "micai-module"}
-	tests := []struct {
-		input, wantTemplate, wantModule string
-	}{
-		{miniProgramTemplateTax, miniProgramTemplateTax, "tax-module"},
-		{miniProgramTemplateMicAI, miniProgramTemplateMicAI, "micai-module"},
-	}
-	for _, tt := range tests {
-		template, err := normalizeMiniProgramTemplate(tt.input)
-		if err != nil {
-			t.Fatalf("normalize %q: %v", tt.input, err)
-		}
-		if template != tt.wantTemplate {
-			t.Fatalf("normalize %q = %q, want %q", tt.input, template, tt.wantTemplate)
-		}
-		if module := miniProgramModuleForTemplate(cfg, template); module != tt.wantModule {
-			t.Fatalf("module for %q = %q, want %q", template, module, tt.wantModule)
-		}
-	}
-	if _, err := normalizeMiniProgramTemplate("unknown"); err == nil {
-		t.Fatal("unsupported template was accepted")
-	}
-	for _, legacy := range []string{"", "hermes"} {
-		if _, err := normalizeMiniProgramTemplate(legacy); err == nil {
-			t.Fatalf("legacy template %q was accepted", legacy)
-		}
-	}
-}
-
-func TestMicAIConfigRequiresIndependentModule(t *testing.T) {
-	cfg := MiniProgramConfig{TaxModule: "tax-module"}
-	if err := validateMiniProgramTemplateConfig(cfg, miniProgramTemplateTax); err != nil {
-		t.Fatalf("tax-agent config rejected: %v", err)
-	}
-	if err := validateMiniProgramTemplateConfig(cfg, miniProgramTemplateMicAI); err == nil || !strings.Contains(err.Error(), "micaiModule") {
-		t.Fatalf("expected actionable MicAI module error, got %v", err)
-	}
-}
-
 func TestMiniProgramPodRuntimeMustRemainHermes(t *testing.T) {
 	cfg := MiniProgramConfig{
 		AppID: "app", AppSecret: "secret", WeixinAPIBase: "https://api.weixin.qq.com",
-		NodeURL: "https://node", PrivateKey: "key", TaxModule: "tax", MicAIModule: "micai", RuntimeType: "docker",
+		NodeURL: "https://node", PrivateKey: "key", RuntimeType: "docker",
 		GatewayURL: "https://gateway", HermesGatewayToken: "token",
 	}
 	if err := validateMiniProgramConfig(cfg); err == nil || !strings.Contains(err.Error(), "must be hermes") {
@@ -161,5 +122,40 @@ func TestMiniProgramPodWaitsForUserBeforeCreatingWeixinQR(t *testing.T) {
 	}
 	if task.WeixinAttemptID != "" || task.QRCodeData != "" || !task.QRExpiresAt.IsZero() || task.Error != "" {
 		t.Fatalf("task generated or retained WeChat QR data before user action: %+v", task)
+	}
+}
+
+func TestMiniProgramLoginTransportErrorDoesNotExposeCredentials(t *testing.T) {
+	service, err := New("test", Config{MiniProgram: MiniProgramConfig{AppID: "wx-app", AppSecret: "private-test-secret"}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service.miniProgramHTTPClient = &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return nil, errors.New("proxyconnect tcp: dial tcp 127.0.0.1:7890: connect: connection refused")
+	})}
+	_, err = service.exchangeMiniProgramCode(t.Context(), "private-login-code")
+	if err == nil {
+		t.Fatal("expected transport failure")
+	}
+	for _, secret := range []string{"private-test-secret", "private-login-code", "secret=", "jscode2session?"} {
+		if strings.Contains(err.Error(), secret) {
+			t.Fatal("login error exposes request credentials")
+		}
+	}
+}
+
+func TestMiniProgramOfficialAPIBypassesEnvironmentProxy(t *testing.T) {
+	service, err := New("test", Config{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	transport, ok := service.miniProgramHTTPClient.Transport.(*http.Transport)
+	if !ok {
+		t.Fatal("login client must have an explicit transport")
+	}
+	req, _ := http.NewRequest("GET", "https://api.weixin.qq.com/sns/jscode2session", nil)
+	proxy, err := transport.Proxy(req)
+	if err != nil || proxy != nil {
+		t.Fatal("official WeChat API must connect directly")
 	}
 }
