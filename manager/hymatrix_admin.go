@@ -36,6 +36,12 @@ func (m *Manager) hymatrixAdminURL(adminURL, nodeURL string) (string, error) {
 }
 
 func (m *Manager) stopHymatrixVM(ctx context.Context, adminURL, nodeURL, pid string) error {
+	return m.changeHymatrixVM(ctx, adminURL, nodeURL, pid, "stop")
+}
+func (m *Manager) resumeHymatrixVM(ctx context.Context, adminURL, nodeURL, pid string) error {
+	return m.changeHymatrixVM(ctx, adminURL, nodeURL, pid, "resume")
+}
+func (m *Manager) changeHymatrixVM(ctx context.Context, adminURL, nodeURL, pid, action string) error {
 	pid = strings.TrimSpace(pid)
 	if pid == "" || strings.HasPrefix(pid, "pending_") {
 		return nil
@@ -48,7 +54,7 @@ func (m *Manager) stopHymatrixVM(ctx context.Context, adminURL, nodeURL, pid str
 	if err != nil || (base.Scheme != "http" && base.Scheme != "https") || base.Host == "" {
 		return errors.New("invalid Hymx admin URL")
 	}
-	base.Path = strings.TrimRight(base.Path, "/") + "/admin/vms/stop"
+	base.Path = strings.TrimRight(base.Path, "/") + "/admin/vms/" + action
 	base.RawQuery, base.Fragment = "", ""
 	body, err := json.Marshal(map[string]string{"pid": pid})
 	if err != nil {
@@ -75,7 +81,13 @@ func (m *Manager) stopHymatrixVM(ctx context.Context, adminURL, nodeURL, pid str
 	if json.Unmarshal(raw, &apiErr) == nil {
 		switch apiErr.Error {
 		case "err_process_not_found", "err_process_stopped":
-			return nil
+			if action == "stop" {
+				return nil
+			}
+		case "err_process_running":
+			if action == "resume" {
+				return nil
+			}
 		}
 		if apiErr.Error != "" {
 			return errors.New(apiErr.Error)

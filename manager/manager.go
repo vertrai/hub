@@ -16,6 +16,8 @@ import (
 var log = common.NewLog("manager")
 
 type Config struct {
+	Commerce    CommerceConfig
+	Stripe      StripeConfig
 	AdminGoogle AdminGoogleConfig
 	Resources   ResourcesConfig
 	MiniProgram MiniProgramConfig
@@ -43,6 +45,10 @@ type ResourcesConfig struct {
 }
 
 type Manager struct {
+	commerceContext       context.Context
+	commerceCancel        context.CancelFunc
+	commerceDone          chan struct{}
+	stripeAPI             stripeGateway
 	llmOAuthMu            sync.Mutex
 	llmOAuthSessions      map[string]*llmOAuthSession
 	codexOAuth            *llm.DeviceOAuthClient
@@ -94,11 +100,21 @@ func New(env string, config Config, wdb *Wdb) (*Manager, error) {
 		adminAuth:             auth,
 		miniProgramHTTPClient: newMiniProgramHTTPClient(),
 		hymatrixAdminClient:   &http.Client{Timeout: 2 * time.Minute},
+		stripeAPI:             newStripeGateway(config.Stripe),
 	}, nil
 }
 
-func (m *Manager) Run(endpoint string) { go m.runJobs(); go m.runAPI(endpoint) }
+func (m *Manager) Run(endpoint string) {
+	m.commerceContext, m.commerceCancel = context.WithCancel(context.Background())
+	m.commerceDone = make(chan struct{})
+	go func() { defer close(m.commerceDone); m.runJobs() }()
+	go m.runAPI(endpoint)
+}
 func (m *Manager) Close() {
+	if m.commerceCancel != nil {
+		m.commerceCancel()
+		<-m.commerceDone
+	}
 	if m.apiServer != nil {
 		_ = m.apiServer.Shutdown(context.Background())
 	}

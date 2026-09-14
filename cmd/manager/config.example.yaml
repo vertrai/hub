@@ -37,3 +37,29 @@ miniProgram:
     gatewayURL: https://your-manager.example
     hermesGatewayToken: ""
     # LLM 配置通过此 Agent 的 Hub API Key 自动申请，在 /admin/llm 设置默认模型。
+
+# vertr.ai 兼容 API。产品标识保持前端协议，catalogId 指向后台助手目录。
+# 对应模块须实现 Hub Hermes 的 Start-Agent 协议。
+commerce:
+  nodeURL: ""
+  adminURL: "" # 节点需支持 /admin/vms/stop 和 /admin/vms/resume
+  privateKey: ""
+  gatewayURL: ""
+  hermesGatewayToken: ""
+  products:
+    telegram_customer_agent:
+      catalogId: ""
+      priceId: ""
+    x_agent:
+      catalogId: ""
+      priceId: ""
+stripe:
+  enabled: false
+  secretKey: ""
+  webhookSecret: ""
+  successURL: https://vertr.ai/checkout-success.html?session_id={CHECKOUT_SESSION_ID}
+  cancelURL: https://vertr.ai/marketplace.html
+  portalReturnURL: https://vertr.ai/my-agents.html
+  managedPayments: false
+  requireTermsOfServiceConsent: true
+  stopAgentOnPaymentFailure: true

@@ -78,11 +78,30 @@ var adminEnhancementsCSS []byte
 //go:embed navigation.html
 var navigationHTML []byte
 
+//go:embed invite_codes.html
+var inviteCodesHTML []byte
+
+//go:embed commerce.js
+var commerceJS []byte
+
+//go:embed app.html
+var appHTML []byte
+
+//go:embed app.js
+var appJS []byte
+
 // RegisterRoutes mounts the shared administration frontend on a backend.
 func RegisterRoutes(routes *gin.Engine, authentication gin.HandlerFunc) {
 	routes.GET("/admin/login", func(c *gin.Context) { renderAdminDocument(c, loginHTML) })
 	protected := routes.Group("", authentication)
 	protected.GET("/admin", adminPage)
+	protected.GET("/admin/invite-codes", func(c *gin.Context) { renderAdminDocument(c, inviteCodesHTML) })
+	routes.GET("/admin/assets/commerce.js", func(c *gin.Context) { c.Data(200, "application/javascript; charset=utf-8", commerceJS) })
+	routes.GET("/app", func(c *gin.Context) {
+		c.Header("Cache-Control", "no-store")
+		c.Data(200, "text/html; charset=utf-8", appHTML)
+	})
+	routes.GET("/app.js", func(c *gin.Context) { c.Data(200, "application/javascript; charset=utf-8", appJS) })
 	protected.GET("/admin/llm/test", func(c *gin.Context) { renderAdminDocument(c, llmTestHTML) })
 	protected.GET("/admin/llm", func(c *gin.Context) { renderAdminDocument(c, llmHTML) })
 	protected.GET("/admin/agents", func(c *gin.Context) { renderAdminDocument(c, agentCatalogHTML) })

@@ -60,7 +60,13 @@ func run(_ *cli.Context) error {
 	if err != nil {
 		return err
 	}
+	var products map[string]manager.CommerceProduct
+	if err := viper.UnmarshalKey("commerce.products", &products); err != nil {
+		return err
+	}
 	service, err := manager.New(viper.GetString("env"), manager.Config{
+		Commerce: manager.CommerceConfig{Products: products, NodeURL: viper.GetString("commerce.nodeURL"), AdminURL: viper.GetString("commerce.adminURL"), PrivateKey: viper.GetString("commerce.privateKey"), GatewayURL: viper.GetString("commerce.gatewayURL"), HermesGatewayToken: viper.GetString("commerce.hermesGatewayToken")},
+		Stripe:   manager.StripeConfig{Enabled: viper.GetBool("stripe.enabled"), SecretKey: viper.GetString("stripe.secretKey"), WebhookSecret: viper.GetString("stripe.webhookSecret"), SuccessURL: viper.GetString("stripe.successURL"), CancelURL: viper.GetString("stripe.cancelURL"), PortalReturnURL: viper.GetString("stripe.portalReturnURL"), ManagedPayments: viper.GetBool("stripe.managedPayments"), RequireTermsOfServiceConsent: viper.GetBool("stripe.requireTermsOfServiceConsent"), StopAgentOnPaymentFailure: viper.GetBool("stripe.stopAgentOnPaymentFailure")},
 		AdminGoogle: manager.AdminGoogleConfig{
 			ClientID: viper.GetString("auth.google.clientId"), AllowedEmails: viper.GetStringSlice("auth.google.allowedEmails"),
 			JWTIssuer: viper.GetString("auth.jwt.issuer"), JWTAudience: viper.GetString("auth.jwt.audience"), PrivateKeyFile: resolveConfigPath(viper.GetString("auth.jwt.privateKeyFile")), PublicKeyFile: resolveConfigPath(viper.GetString("auth.jwt.publicKeyFile")),

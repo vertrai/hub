@@ -81,8 +81,8 @@ func newAdminAuthenticator(config AdminGoogleConfig) (*adminAuthenticator, error
 	if !configured {
 		return auth, nil
 	}
-	if config.ClientID == "" || config.PrivateKeyFile == "" || config.PublicKeyFile == "" || len(allowed) == 0 {
-		return nil, errors.New("admin Google clientId, allowedEmails, jwt privateKeyFile and publicKeyFile are required")
+	if config.ClientID == "" || config.PrivateKeyFile == "" || config.PublicKeyFile == "" {
+		return nil, errors.New("admin Google clientId, jwt privateKeyFile and publicKeyFile are required")
 	}
 	privateKey, err := loadAdminPrivateKey(config.PrivateKeyFile)
 	if err != nil {
@@ -148,7 +148,7 @@ func (a *adminAuthenticator) issueSession(identity adminIdentity) (string, error
 	return jwt.NewWithClaims(jwt.SigningMethodEdDSA, claims).SignedString(a.privateKey)
 }
 
-func (a *adminAuthenticator) verifySession(raw string) (adminIdentity, bool) {
+func (a *adminAuthenticator) verifyIdentity(raw string) (adminIdentity, bool) {
 	claims := &adminTokenClaims{}
 	token, err := jwt.ParseWithClaims(raw, claims, func(token *jwt.Token) (any, error) {
 		if token.Method != jwt.SigningMethodEdDSA {
@@ -159,10 +159,16 @@ func (a *adminAuthenticator) verifySession(raw string) (adminIdentity, bool) {
 	if err != nil || token == nil || !token.Valid || claims.Subject == "" || claims.Email == "" {
 		return adminIdentity{}, false
 	}
-	if _, ok := a.allowed[strings.ToLower(claims.Email)]; !ok {
+	return adminIdentity{Subject: claims.Subject, Email: claims.Email, Name: claims.Name, Picture: claims.Picture}, true
+}
+
+func (a *adminAuthenticator) verifySession(raw string) (adminIdentity, bool) {
+	identity, ok := a.verifyIdentity(raw)
+	if !ok {
 		return adminIdentity{}, false
 	}
-	return adminIdentity{Subject: claims.Subject, Email: claims.Email, Name: claims.Name, Picture: claims.Picture}, true
+	_, allowed := a.allowed[strings.ToLower(identity.Email)]
+	return identity, allowed
 }
 
 func adminCookie(value string, secure bool, maxAge int) *http.Cookie {
@@ -172,31 +178,7 @@ func (m *Manager) adminAuthInfo(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"googleClientId": m.adminAuth.clientID, "localBypass": m.localAdminRequest(c.Request)})
 }
 
-func (m *Manager) adminGoogleLogin(c *gin.Context) {
-	var req struct {
-		IDToken string `json:"id_token"`
-	}
-	if c.ShouldBindJSON(&req) != nil || strings.TrimSpace(req.IDToken) == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "id_token is required"})
-		return
-	}
-	identity, err := m.adminAuth.validator.Validate(c.Request.Context(), req.IDToken, m.adminAuth.clientID)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid Google id_token"})
-		return
-	}
-	if _, ok := m.adminAuth.allowed[identity.Email]; !ok {
-		c.JSON(http.StatusForbidden, gin.H{"code": "admin_not_allowed", "error": "该 Google 账号未被授权为管理员"})
-		return
-	}
-	token, err := m.adminAuth.issueSession(identity)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "cannot create administrator session"})
-		return
-	}
-	http.SetCookie(c.Writer, adminCookie(token, m.adminAuth.secure, int(m.adminAuth.lifetime.Seconds())))
-	c.JSON(http.StatusOK, gin.H{"user": identity, "redirect": "/admin"})
-}
+func (m *Manager) adminGoogleLogin(c *gin.Context) { m.googleLogin(c, true) }
 
 // localAdminRequest permits direct loopback development access only. Host
 // alone is insufficient: remote clients can choose their Host header.

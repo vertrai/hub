@@ -24,6 +24,9 @@ const (
 )
 
 type User struct {
+	GoogleSub *string   `gorm:"size:255;uniqueIndex" json:"-"`
+	Email     string    `gorm:"size:320" json:"email"`
+	Picture   string    `json:"picture,omitempty"`
 	ID        string    `gorm:"primaryKey;size:80" json:"id"`
 	Name      string    `gorm:"size:200;not null" json:"name"`
 	Status    string    `gorm:"size:24;not null;index" json:"status"`

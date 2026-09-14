@@ -36,6 +36,7 @@ func (m *Manager) router() *gin.Engine {
 	r.GET("/v1/wechat/agents/:taskId/weixin-rebind/:attempt", m.pollMiniProgramRebind)
 	r.DELETE("/v1/wechat/agents/:taskId/weixin-rebind/:attempt", m.cancelMiniProgramRebind)
 	r.POST("/v1/wechat/agents/:taskId/weixin-rebind/:attempt/confirm", m.confirmMiniProgramRebind)
+	m.registerCommerceRoutes(r)
 	gatewayweb.RegisterRoutes(r, m.requireAdminPage)
 	r.GET("/v1/admin/auth/info", m.adminAuthInfo)
 	r.POST("/v1/admin/auth/google", m.adminGoogleLogin)
