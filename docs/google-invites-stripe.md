@@ -3,7 +3,7 @@
 实现范围来自本次用户要求：
 
 1. 普通用户 Google 登录和 Web 操作入口，与管理员共用 Google 验证/会话逻辑；后台每次校验管理员白名单，普通登录不要求管理员身份。
-2. 邀请码迁入 PostgreSQL，后台支持创建、查看和撤销，用户可以兑换开通助手。
+2. 六位邀请码（兼容 vertr.ai 输入限制）迁入 PostgreSQL，后台支持创建、查看和撤销，用户可以兑换开通助手。
 3. Manager 兼容本地 website（vertr.ai）现有认证、邀请码、订阅购买、账单和门户 API。
 
 ## 入口
@@ -54,3 +54,12 @@
 6. 旧 JWT 若签名/issuer/audience 不一致，用户重新登录。旧用户/邀请码/账单/实例 JSON 数据不能仅通过切换域名自动进入 PostgreSQL；现有付费订阅上线前必须做数据映射导入，尤其核实旧运行模块协议。本次功能实现不操作生产数据、不切换域名。
 
 部署机需保管真实 Stripe/Google/节点配置；仓库示例为空值，不包含生产凭据。
+
+## 验证
+
+- `go test ./...`：现有功能及新增接口测试。
+- `go test -race ./manager -run TestCommerce -count=1`：新增功能竞争检测。
+- `HUB_TEST_COMMERCE_POSTGRES_DSN=postgresql://... go test ./manager -run TestCommerce -count=1`：独立 PostgreSQL schema，验证并发兑换和支付事件幂等；DSN 必须为测试数据库，账号需允许创建/删除 schema。
+- 浏览器以模拟 API 验证后台创建/撤销、用户页面、移动端布局及脚本错误；不代替真实 Google OAuth 或支付验收。
+
+开发验证没有使用生产 Stripe 密钥、没有创建真实订阅或部署线上 Agent。

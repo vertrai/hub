@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"math/big"
 	"net/http"
 	"strings"
 	"time"
@@ -109,10 +110,32 @@ func (m *Manager) generateInviteCodes(c *gin.Context) {
 		}
 	}
 	rows := make([]schema.InviteCode, 0, req.Count)
-	for i := 0; i < req.Count; i++ {
-		rows = append(rows, schema.InviteCode{Code: strings.ToUpper(commerceID("")[:16]), Product: req.Product, Note: req.Note, ExpiresAt: req.ExpiresAt})
-	}
-	if err := m.wdb.Db.Create(&rows).Error; err != nil {
+	err := m.wdb.Db.Transaction(func(tx *gorm.DB) error {
+		const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+		for attempts := 0; len(rows) < req.Count && attempts < req.Count*10; attempts++ {
+			code := make([]byte, 6)
+			for i := range code {
+				n, e := rand.Int(rand.Reader, big.NewInt(int64(len(alphabet))))
+				if e != nil {
+					return e
+				}
+				code[i] = alphabet[n.Int64()]
+			}
+			row := schema.InviteCode{Code: string(code), Product: req.Product, Note: req.Note, ExpiresAt: req.ExpiresAt}
+			result := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&row)
+			if result.Error != nil {
+				return result.Error
+			}
+			if result.RowsAffected == 1 {
+				rows = append(rows, row)
+			}
+		}
+		if len(rows) != req.Count {
+			return errors.New("cannot allocate unique invite codes")
+		}
+		return nil
+	})
+	if err != nil {
 		c.JSON(500, gin.H{"error": "cannot create invitation codes"})
 		return
 	}
@@ -224,7 +247,14 @@ func (m *Manager) reserveInviteAgent(code, user, product string, entry schema.Ag
 	return a, err
 }
 func webAgentResponse(a schema.WebAgent) gin.H {
-	return gin.H{"agentId": a.ID, "product": a.Product, "status": a.State, "inviteCode": a.InviteCode, "botUsername": a.BotUsername, "telegramBotUrl": telegramBotLink(a.BotUsername), "telegramUrl": telegramBotLink(a.BotUsername), "createdAt": a.CreatedAt}
+	status := a.State
+	switch status {
+	case "queued", "processing":
+		status = "starting"
+	case "needs_review":
+		status = "failed"
+	}
+	return gin.H{"agentId": a.ID, "product": a.Product, "status": status, "inviteCode": a.InviteCode, "botUsername": a.BotUsername, "telegramBotUrl": telegramBotLink(a.BotUsername), "telegramUrl": telegramBotLink(a.BotUsername), "createdAt": a.CreatedAt}
 }
 func (m *Manager) listWebAgents(c *gin.Context) {
 	rows := []schema.WebAgent{}
@@ -232,9 +262,25 @@ func (m *Manager) listWebAgents(c *gin.Context) {
 		c.JSON(500, gin.H{"error": "cannot list agents"})
 		return
 	}
+	bills := []schema.Billing{}
+	if err := m.wdb.Db.Where("user_id = ? AND agent_id <> ''", mustWebUser(c)).Find(&bills).Error; err != nil {
+		c.JSON(500, gin.H{"error": "cannot load agent billing"})
+		return
+	}
+	byAgent := make(map[string]schema.Billing, len(bills))
+	for _, b := range bills {
+		byAgent[b.AgentID] = b
+	}
 	items := []gin.H{}
 	for _, a := range rows {
-		items = append(items, webAgentResponse(a))
+		item := webAgentResponse(a)
+		if b, ok := byAgent[a.ID]; ok {
+			item["billing"] = b
+			item["currentPeriodStart"] = b.CurrentPeriodStart
+			item["currentPeriodEnd"] = b.CurrentPeriodEnd
+			item["cancelAtPeriodEnd"] = b.CancelAtPeriodEnd
+		}
+		items = append(items, item)
 	}
 	c.JSON(200, gin.H{"items": items})
 }
@@ -250,6 +296,7 @@ func (m *Manager) adminWebAgents(c *gin.Context) {
 	items := []gin.H{}
 	for _, a := range rows {
 		r := webAgentResponse(a)
+		r["status"] = a.State
 		r["userId"] = a.UserID
 		r["error"] = a.Error
 		r["phase"] = a.Phase

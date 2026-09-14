@@ -36,12 +36,17 @@ func (m *Manager) runCommerceJob(ctx context.Context) error {
 	}
 	var a schema.WebAgent
 	err := m.wdb.Db.Transaction(func(tx *gorm.DB) error {
-		err := tx.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).Where("state = ? OR (state = ? AND desired = ?) OR (state = ? AND desired = ?)", "queued", "running", "stopped", "stopped", "running").Order("created_at").First(&a).Error
+		err := tx.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).Where(`state = ? OR (state = ? AND desired = ?) OR (state = ? AND desired = ?) OR
+ (state IN ('failed','needs_review') AND desired = 'stopped' AND EXISTS
+ (SELECT 1 FROM manager_hymatrix_pods p WHERE p.id = manager_web_agents.pod_id
+ AND p.p_id <> '' AND p.p_id NOT LIKE 'pending_%' AND p.status <> 'stopped'))`, "queued", "running", "stopped", "stopped", "running").Order("created_at").First(&a).Error
 		if err != nil {
 			return err
 		}
 		until := time.Now().Add(10 * time.Minute)
+		claimedState := a.State
 		r := tx.Model(&a).Where("state = ?", a.State).Updates(map[string]any{"state": "processing", "lease_until": until})
+		a.State = claimedState
 		if r.Error != nil {
 			return r.Error
 		}
@@ -88,6 +93,9 @@ func (m *Manager) reconcileWebAgent(ctx context.Context, a *schema.WebAgent) err
 			if err := m.wdb.Db.Model(&pod).Update("status", "stopped").Error; err != nil {
 				return err
 			}
+		}
+		if a.State == "needs_review" {
+			return m.wdb.Db.Model(a).Updates(map[string]any{"state": "needs_review", "lease_until": nil}).Error
 		}
 		return m.finishWebAgent(a, "stopped")
 	}
@@ -165,7 +173,7 @@ func (m *Manager) reconcileWebAgent(ctx context.Context, a *schema.WebAgent) err
 		}
 		a.PodID = pod.ID
 	}
-	client, err := NewHymatrixClient(HymatrixConfig{NodeURL: pod.NodeURL, PrivateKey: pod.PrivateKey, Module: pod.Module, Scheduler: pod.Scheduler, LLMAPIKey: resource.APIKey, LLMBaseURL: resource.BaseURL, LLMModel: resource.Model, LLMProvider: resource.Provider})
+	client, err := m.commerceHymatrix(HymatrixConfig{NodeURL: pod.NodeURL, PrivateKey: pod.PrivateKey, Module: pod.Module, Scheduler: pod.Scheduler, LLMAPIKey: resource.APIKey, LLMBaseURL: resource.BaseURL, LLMModel: resource.Model, LLMProvider: resource.Provider})
 	if err != nil {
 		return err
 	}
@@ -177,7 +185,7 @@ func (m *Manager) reconcileWebAgent(ctx context.Context, a *schema.WebAgent) err
 		if err != nil {
 			return err
 		}
-		if err = m.wdb.Db.Model(&pod).Updates(map[string]any{"pid": pid, "status": schema.PodStatusSpawned}).Error; err != nil {
+		if err = m.wdb.Db.Model(&pod).Updates(map[string]any{"p_id": pid, "status": schema.PodStatusSpawned}).Error; err != nil {
 			return err
 		}
 		pod.PID = pid

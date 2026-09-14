@@ -26,3 +26,12 @@ _Avoid_: platform token, user token.
 **hub-chat**: A reserved model alias resolved to the requesting LLM Key’s current default model on every request. Changing that default changes subsequent inference without reconfiguring the agent.
 
 **Automatic LLM Allocation Settings**: The public relay URL and initial model policy for newly allocated keys. Existing keys retain their individual model policies; administrators update them explicitly.
+
+
+**Google User**: A Manager user authenticated by a verified Google subject. Its stable ID is `google_<subject>`. Google login is shared by the user portal and administration; admin permissions are checked separately against the configured email allowlist. Google and WeChat identities are not merged by email.
+
+**Web Agent**: A durable commercial instance owned by a User. It retains an Access Key and a Pod across subscription suspension. Its desired entitlement state is separate from deployment progress. Interrupted non-idempotent deployment operations require reconciliation.
+
+**Invite Code**: A single-use grant of one Web Agent, optionally restricted to a product and expiry. Redemption and instance reservation commit together.
+
+**Billing**: A Manager order associated with a Stripe subscription and a Web Agent. A verified webhook updates billing and desired instance state transactionally; deployment runs separately. Product configuration maps the website product identifier to a catalog entry and Stripe Price ID.

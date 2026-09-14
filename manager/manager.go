@@ -45,6 +45,7 @@ type ResourcesConfig struct {
 }
 
 type Manager struct {
+	commerceHymatrix      func(HymatrixConfig) (*HymatrixClient, error)
 	commerceContext       context.Context
 	commerceCancel        context.CancelFunc
 	commerceDone          chan struct{}
@@ -90,6 +91,7 @@ func New(env string, config Config, wdb *Wdb) (*Manager, error) {
 	}
 	return &Manager{
 		env: env, config: config, wdb: wdb, resources: NewResourcesClient(config.Resources),
+		commerceHymatrix:      NewHymatrixClient,
 		llmOAuthSessions:      make(map[string]*llmOAuthSession),
 		codexOAuth:            llm.NewDeviceOAuthClient(&http.Client{Timeout: 30 * time.Second, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}),
 		llmClient:             newLLMClient(),

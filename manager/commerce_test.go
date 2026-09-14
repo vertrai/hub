@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -18,7 +20,12 @@ import (
 func newCommerceTestManager(t *testing.T) *Manager {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
-	m := newLLMTestManager(t)
+	var m *Manager
+	if dsn := os.Getenv("HUB_TEST_COMMERCE_POSTGRES_DSN"); dsn != "" {
+		m = newCommercePostgresManager(t, dsn)
+	} else {
+		m = newLLMTestManager(t)
+	}
 	if err := m.wdb.Db.AutoMigrate(&schema.User{}, &schema.AccessKey{}, &schema.HymatrixPod{}, &schema.AgentCatalogEntry{}, &schema.InviteCode{}, &schema.WebAgent{}, &schema.Billing{}, &schema.StripeEvent{}); err != nil {
 		t.Fatal(err)
 	}
@@ -288,5 +295,162 @@ func TestCommerceWorkerStopsUnstartedAndFlagsInterrupted(t *testing.T) {
 	m.wdb.Db.First(&stuck, "id = ?", stuck.ID)
 	if stuck.State != "needs_review" {
 		t.Fatal("interrupted spawn retried", stuck.State)
+	}
+}
+
+func TestCommerceCancelStopsUncertainKnownPod(t *testing.T) {
+	m := newCommerceTestManager(t)
+	stops := 0
+	node := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/admin/vms/stop" {
+			t.Errorf("unexpected request %s", r.URL.Path)
+		}
+		stops++
+		w.Write([]byte(`{}`))
+	}))
+	defer node.Close()
+	pod := schema.HymatrixPod{ID: "uncertain-pod", PID: "confirmed-remote-pid", Status: "spawned", AdminURL: node.URL, UserID: "one"}
+	m.wdb.Db.Create(&pod)
+	a := schema.WebAgent{ID: "uncertain-agent", PodID: pod.ID, Source: "uncertain", State: "needs_review", Desired: "stopped", Phase: "starting", Error: "start response lost"}
+	m.wdb.Db.Create(&a)
+	if err := m.runCommerceJob(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if stops != 1 {
+		t.Fatal("canceled uncertain pod was not stopped")
+	}
+	m.wdb.Db.First(&a, "id = ?", a.ID)
+	if a.State != "needs_review" || a.Error == "" {
+		t.Fatal("lost reconciliation requirement")
+	}
+	if err := m.runCommerceJob(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if stops != 1 {
+		t.Fatal("repeated stop unnecessarily")
+	}
+}
+func TestCommerceWebsiteAgentContract(t *testing.T) {
+	m := newCommerceTestManager(t)
+	token := userToken(t, m, "one")
+	a := schema.WebAgent{ID: "agent_contract", UserID: "google_one", Product: "x_agent", State: "queued", Source: "contract"}
+	m.wdb.Db.Create(&a)
+	end := time.Now().Add(60 * 24 * time.Hour).UTC().Truncate(time.Second)
+	m.wdb.Db.Create(&schema.Billing{ID: "bill_contract", UserID: a.UserID, AgentID: a.ID, CurrentPeriodEnd: end})
+	w := webRequest(m, "GET", "/v1/agents", "", token)
+	if w.Code != 200 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	var data struct {
+		Items []struct {
+			Status           string
+			CurrentPeriodEnd time.Time
+		}
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &data); err != nil {
+		t.Fatal(err)
+	}
+	if len(data.Items) != 1 || data.Items[0].Status != "starting" || !data.Items[0].CurrentPeriodEnd.Equal(end) {
+		t.Fatal(w.Body.String())
+	}
+}
+
+func TestCommerceProvisionStopAndResumeKeepsPodAndKeys(t *testing.T) {
+	m := newCommerceTestManager(t)
+	if err := m.wdb.Db.AutoMigrate(&schema.LLMResourceSettings{}, &schema.LLMProvider{}, &schema.LLMRoute{}, &schema.LLMKey{}); err != nil {
+		t.Fatal(err)
+	}
+	m.wdb.Db.Create(&schema.LLMResourceSettings{ID: "default", BaseURL: "https://hub.example/llm/v1", AllowedModels: `["model"]`, DefaultModel: "model"})
+	m.wdb.Db.Create(&schema.LLMProvider{ID: "provider", Enabled: true, Kind: "openai", Models: `["model"]`, Credential: []byte(`{"apiKey":"test"}`)})
+	m.wdb.Db.Create(&schema.LLMRoute{ID: "model", ProviderID: "provider", UpstreamModel: "model"})
+	resources := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/telegram-bot":
+			w.Write([]byte(`{"botToken":"bot-secret","username":"example_bot"}`))
+		case "/v1/access-key":
+			w.Write([]byte(`{"accessKey":{"id":"resource-key","ownerUserId":"google_one","status":"active"}}`))
+		default:
+			t.Errorf("unexpected resource call %s", r.URL.Path)
+			w.WriteHeader(404)
+		}
+	}))
+	defer resources.Close()
+	m.resources = NewResourcesClient(ResourcesConfig{BaseURL: resources.URL})
+	actions := []string{}
+	node := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		actions = append(actions, r.URL.Path)
+		w.Write([]byte(`{}`))
+	}))
+	defer node.Close()
+	sdk := &recordingPodSDK{}
+	m.commerceHymatrix = func(cfg HymatrixConfig) (*HymatrixClient, error) { return &HymatrixClient{config: cfg, sdk: sdk}, nil }
+	a := schema.WebAgent{ID: "lifecycle", UserID: "google_one", Source: "lifecycle", State: "queued", Desired: "running", AccessKeyID: "key", PodID: "pod", Module: "module"}
+	pod := schema.HymatrixPod{ID: "pod", UserID: a.UserID, PID: "pending_" + a.ID, Status: schema.PodStatusSpawned, AccessKeyID: "key", AdminURL: node.URL, Module: "module"}
+	key := schema.AccessKey{ID: "key", UserID: a.UserID, ResourceKeyID: "resource-key", Secret: "gateway-secret", Status: "assigned", AssignedPodID: &pod.ID}
+	for _, record := range []any{&a, &pod, &key} {
+		if err := m.wdb.Db.Create(record).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := m.runCommerceJob(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	m.wdb.Db.First(&a, "id = ?", a.ID)
+	m.wdb.Db.First(&pod, "id = ?", pod.ID)
+	if a.State != "running" || pod.PID != "pid-new" || sdk.startTarget != "pid-new" {
+		t.Fatalf("not started: state=%s phase=%s err=%s pid=%s calls=%v", a.State, a.Phase, a.Error, pod.PID, sdk.calls)
+	}
+	m.wdb.Db.Model(&a).Update("desired", "stopped")
+	if err := m.runCommerceJob(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	m.wdb.Db.Model(&a).Update("desired", "running")
+	if err := m.runCommerceJob(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	m.wdb.Db.First(&a, "id = ?", a.ID)
+	m.wdb.Db.First(&key, "id = ?", key.ID)
+	if a.State != "running" || a.PodID != "pod" || key.AssignedPodID == nil || *key.AssignedPodID != "pod" || len(sdk.calls) != 2 {
+		t.Fatal("resume replaced allocation", a.State, sdk.calls)
+	}
+	if strings.Join(actions, ",") != "/admin/vms/stop,/admin/vms/resume" {
+		t.Fatal(actions)
+	}
+}
+
+func TestCommerceAdminCreatesWebsiteCompatibleCodesAndRevokes(t *testing.T) {
+	m := newCommerceTestManager(t)
+	request := httptest.NewRequest("POST", "/v1/admin/invite-codes", strings.NewReader(`{"count":10,"product":"x_agent","note":"campaign"}`))
+	request.Header.Set("Content-Type", "application/json")
+	authenticateAdmin(m, request)
+	w := httptest.NewRecorder()
+	m.router().ServeHTTP(w, request)
+	if w.Code != 201 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	var data struct{ Codes []schema.InviteCode }
+	if err := json.Unmarshal(w.Body.Bytes(), &data); err != nil {
+		t.Fatal(err)
+	}
+	if len(data.Codes) != 10 {
+		t.Fatal(len(data.Codes))
+	}
+	seen := map[string]bool{}
+	for _, code := range data.Codes {
+		if len(code.Code) != 6 || seen[code.Code] {
+			t.Fatal("incompatible or duplicate code", code.Code)
+		}
+		seen[code.Code] = true
+	}
+	request = httptest.NewRequest("DELETE", "/v1/admin/invite-codes/"+data.Codes[0].Code, nil)
+	authenticateAdmin(m, request)
+	w = httptest.NewRecorder()
+	m.router().ServeHTTP(w, request)
+	if w.Code != 204 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	token := userToken(t, m, "redeemer")
+	if w := webRequest(m, "POST", "/v1/agents/x", `{"inviteCode":"`+data.Codes[0].Code+`"}`, token); w.Code != 403 {
+		t.Fatal("revoked code accepted", w.Code)
 	}
 }
