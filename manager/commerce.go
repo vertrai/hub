@@ -44,6 +44,8 @@ func (m *Manager) registerCommerceRoutes(r *gin.Engine) {
 	user.GET("/billing/checkout-sessions/:sessionId", m.getCheckoutSessionStatus)
 	user.POST("/billing/portal-sessions", m.createPortalSession)
 	admin := r.Group("/v1/admin", m.requireAdmin)
+	admin.GET("/stripe/settings", m.getStripeSettings)
+	admin.PUT("/stripe/settings", m.saveStripeSettings)
 	admin.GET("/invite-codes", m.listInviteCodes)
 	admin.POST("/invite-codes", m.generateInviteCodes)
 	admin.DELETE("/invite-codes/:code", m.revokeInviteCode)
@@ -75,8 +77,13 @@ func (m *Manager) listCommerceProducts(c *gin.Context) {
 		c.JSON(500, gin.H{"error": "cannot list products"})
 		return
 	}
+	cfg, _, err := m.stripeRuntime()
+	if err != nil {
+		c.JSON(503, gin.H{"error": "payment settings unavailable"})
+		return
+	}
 	for _, entry := range entries {
-		items = append(items, gin.H{"product": entry.ProductID, "name": entry.Name, "catalogId": entry.ID, "subscriptionAvailable": m.config.Stripe.Enabled && entry.StripePriceID != ""})
+		items = append(items, gin.H{"product": entry.ProductID, "name": entry.Name, "catalogId": entry.ID, "subscriptionAvailable": cfg.Enabled && entry.StripePriceID != ""})
 	}
 	c.JSON(200, gin.H{"items": items})
 }
@@ -153,7 +160,36 @@ func (m *Manager) listInviteCodes(c *gin.Context) {
 		c.JSON(500, gin.H{"error": "cannot list codes"})
 		return
 	}
-	c.JSON(200, gin.H{"codes": rows})
+
+	ids := make([]string, 0, len(rows))
+	for _, row := range rows {
+		if row.UsedBy != "" {
+			ids = append(ids, row.UsedBy)
+		}
+	}
+	users, err := m.commerceUsers(ids)
+	if err != nil {
+		c.JSON(500, gin.H{"error": "cannot load redemption users"})
+		return
+	}
+	type inviteView struct {
+		schema.InviteCode
+		UsedByUser *schema.User `json:"usedByUser,omitempty"`
+	}
+	items := make([]inviteView, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, inviteView{row, users[row.UsedBy]})
+	}
+	var total, used int64
+	if err := m.wdb.Db.Model(&schema.InviteCode{}).Count(&total).Error; err != nil {
+		c.Status(500)
+		return
+	}
+	if err := m.wdb.Db.Model(&schema.InviteCode{}).Where("used_at IS NOT NULL").Count(&used).Error; err != nil {
+		c.Status(500)
+		return
+	}
+	c.JSON(200, gin.H{"codes": items, "total": total, "used": used})
 }
 func (m *Manager) revokeInviteCode(c *gin.Context) {
 	if !m.catalogDB(c) {
@@ -298,6 +334,15 @@ func (m *Manager) adminWebAgents(c *gin.Context) {
 		c.JSON(500, gin.H{"error": "cannot list agents"})
 		return
 	}
+	ids := make([]string, 0, len(rows))
+	for _, row := range rows {
+		ids = append(ids, row.UserID)
+	}
+	users, err := m.commerceUsers(ids)
+	if err != nil {
+		c.JSON(500, gin.H{"error": "cannot load agent users"})
+		return
+	}
 	items := []gin.H{}
 	for _, a := range rows {
 		r := webAgentResponse(a)
@@ -306,9 +351,20 @@ func (m *Manager) adminWebAgents(c *gin.Context) {
 		r["error"] = a.Error
 		r["phase"] = a.Phase
 		r["podId"] = a.PodID
+		r["user"] = users[a.UserID]
+		r["accessKeyId"] = a.AccessKeyID
 		items = append(items, r)
 	}
-	c.JSON(200, gin.H{"items": items})
+	var total, running int64
+	if err := m.wdb.Db.Model(&schema.WebAgent{}).Count(&total).Error; err != nil {
+		c.Status(500)
+		return
+	}
+	if err := m.wdb.Db.Model(&schema.WebAgent{}).Where("state = ?", "running").Count(&running).Error; err != nil {
+		c.Status(500)
+		return
+	}
+	c.JSON(200, gin.H{"items": items, "total": total, "running": running})
 }
 func (m *Manager) retryWebAgent(c *gin.Context) {
 	if !m.catalogDB(c) {
@@ -324,4 +380,19 @@ func (m *Manager) retryWebAgent(c *gin.Context) {
 		return
 	}
 	c.Status(204)
+}
+
+func (m *Manager) commerceUsers(ids []string) (map[string]*schema.User, error) {
+	result := make(map[string]*schema.User)
+	if len(ids) == 0 {
+		return result, nil
+	}
+	var users []schema.User
+	if err := m.wdb.Db.Select("id", "name", "email", "picture").Where("id IN ?", ids).Find(&users).Error; err != nil {
+		return nil, err
+	}
+	for i := range users {
+		result[users[i].ID] = &users[i]
+	}
+	return result, nil
 }

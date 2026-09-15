@@ -26,7 +26,7 @@ func newCommerceTestManager(t *testing.T) *Manager {
 	} else {
 		m = newLLMTestManager(t)
 	}
-	if err := m.wdb.Db.AutoMigrate(&schema.User{}, &schema.AccessKey{}, &schema.HymatrixPod{}, &schema.AgentCatalogEntry{}, &schema.InviteCode{}, &schema.WebAgent{}, &schema.Billing{}, &schema.StripeEvent{}); err != nil {
+	if err := m.wdb.Db.AutoMigrate(&schema.StripeSettings{}, &schema.User{}, &schema.AccessKey{}, &schema.HymatrixPod{}, &schema.AgentCatalogEntry{}, &schema.InviteCode{}, &schema.WebAgent{}, &schema.Billing{}, &schema.StripeEvent{}); err != nil {
 		t.Fatal(err)
 	}
 	m.config.Deployment = DeploymentConfig{RuntimeType: "hermes", NodeURL: "https://node.example", PrivateKey: "configured", GatewayURL: "https://hub.example", HermesGatewayToken: "configured"}

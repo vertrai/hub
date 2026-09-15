@@ -29,7 +29,7 @@ func TestWdbStartupDoesNotMigrate(t *testing.T) {
 	if err := db.Migrate(); err != nil {
 		t.Fatal(err)
 	}
-	for _, model := range []any{&schema.User{}, &schema.AgentCatalogEntry{}, &schema.Billing{}, &schema.HymatrixPod{}} {
+	for _, model := range []any{&schema.StripeSettings{}, &schema.User{}, &schema.AgentCatalogEntry{}, &schema.Billing{}, &schema.HymatrixPod{}} {
 		if !db.Db.Migrator().HasTable(model) {
 			t.Fatalf("missing migrated table for %T", model)
 		}

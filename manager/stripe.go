@@ -55,7 +55,11 @@ func (m *Manager) createCheckoutSession(c *gin.Context) {
 		c.JSON(400, gin.H{"error": "product and one agent seat are required"})
 		return
 	}
-	cfg := m.config.Stripe
+	cfg, gateway, loadErr := m.stripeRuntime()
+	if loadErr != nil {
+		c.JSON(503, gin.H{"error": "Stripe settings unavailable"})
+		return
+	}
 	if !cfg.Enabled || cfg.SecretKey == "" || cfg.WebhookSecret == "" || cfg.SuccessURL == "" || cfg.CancelURL == "" {
 		c.JSON(503, gin.H{"error": "Stripe checkout is not configured"})
 		return
@@ -128,7 +132,7 @@ func (m *Manager) createCheckoutSession(c *gin.Context) {
 		}
 		ctx, cancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
 		defer cancel()
-		session, e := m.stripeAPI.Checkout(ctx, p)
+		session, e := gateway.Checkout(ctx, p)
 		if e != nil {
 			return e
 		}
@@ -175,7 +179,11 @@ func (m *Manager) getCheckoutSessionStatus(c *gin.Context) {
 	c.JSON(200, gin.H{"billing": b})
 }
 func (m *Manager) createPortalSession(c *gin.Context) {
-	cfg := m.config.Stripe
+	cfg, gateway, loadErr := m.stripeRuntime()
+	if loadErr != nil {
+		c.JSON(503, gin.H{"error": "Stripe settings unavailable"})
+		return
+	}
 	if !cfg.Enabled || cfg.SecretKey == "" || cfg.PortalReturnURL == "" {
 		c.JSON(503, gin.H{"error": "billing portal is not configured"})
 		return
@@ -187,7 +195,7 @@ func (m *Manager) createPortalSession(c *gin.Context) {
 	}
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
 	defer cancel()
-	url, err := m.stripeAPI.Portal(ctx, b.CustomerID, cfg.PortalReturnURL)
+	url, err := gateway.Portal(ctx, b.CustomerID, cfg.PortalReturnURL)
 	if err != nil {
 		c.JSON(502, gin.H{"error": "could not open billing portal"})
 		return
@@ -195,7 +203,8 @@ func (m *Manager) createPortalSession(c *gin.Context) {
 	c.JSON(200, gin.H{"url": url})
 }
 func (m *Manager) stripeWebhook(c *gin.Context) {
-	if !m.config.Stripe.Enabled || m.config.Stripe.WebhookSecret == "" || m.wdb == nil {
+	cfg, gateway, loadErr := m.stripeRuntime()
+	if loadErr != nil || cfg.WebhookSecret == "" || m.wdb == nil {
 		c.JSON(503, gin.H{"error": "Stripe webhook is unavailable"})
 		return
 	}
@@ -204,12 +213,12 @@ func (m *Manager) stripeWebhook(c *gin.Context) {
 		c.JSON(400, gin.H{"error": "invalid webhook body"})
 		return
 	}
-	event, err := webhook.ConstructEvent(raw, c.GetHeader("Stripe-Signature"), m.config.Stripe.WebhookSecret)
+	event, err := webhook.ConstructEvent(raw, c.GetHeader("Stripe-Signature"), cfg.WebhookSecret)
 	if err != nil {
 		c.JSON(400, gin.H{"error": "invalid webhook signature or API version"})
 		return
 	}
-	if err = m.processStripeEvent(c.Request.Context(), event); err != nil {
+	if err = m.processStripeEventWithRuntime(c.Request.Context(), event, cfg, gateway); err != nil {
 		log.Error("process Stripe event", "event", event.ID, "err", err)
 		c.JSON(500, gin.H{"error": "webhook processing failed; retry required"})
 		return
@@ -221,6 +230,14 @@ func (m *Manager) stripeWebhook(c *gin.Context) {
 // runs in the webhook. Retrieve current subscription state to tolerate delivery
 // out of order (including a past invoice.paid arriving after cancellation).
 func (m *Manager) processStripeEvent(ctx context.Context, event stripe.Event) error {
+	cfg, gateway, err := m.stripeRuntime()
+	if err != nil {
+		return err
+	}
+	return m.processStripeEventWithRuntime(ctx, event, cfg, gateway)
+}
+
+func (m *Manager) processStripeEventWithRuntime(ctx context.Context, event stripe.Event, cfg StripeConfig, gateway stripeGateway) error {
 	return m.wdb.Db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		result := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&schema.StripeEvent{ID: event.ID, Type: string(event.Type)})
 		if result.Error != nil {
@@ -306,7 +323,7 @@ func (m *Manager) processStripeEvent(ctx context.Context, event stripe.Event) er
 			}
 			fetchCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 			defer cancel()
-			s, err := m.stripeAPI.Subscription(fetchCtx, subscriptionID)
+			s, err := gateway.Subscription(fetchCtx, subscriptionID)
 			if err != nil {
 				return err
 			}
@@ -343,7 +360,7 @@ func (m *Manager) processStripeEvent(ctx context.Context, event stripe.Event) er
 				desired := ""
 				if entitled && paid {
 					desired = "running"
-				} else if s.Status == stripe.SubscriptionStatusCanceled || s.Status == stripe.SubscriptionStatusUnpaid || s.Status == stripe.SubscriptionStatusIncompleteExpired || s.Status == stripe.SubscriptionStatusPaused || (s.Status == stripe.SubscriptionStatusPastDue && m.config.Stripe.StopAgentOnPaymentFailure) {
+				} else if s.Status == stripe.SubscriptionStatusCanceled || s.Status == stripe.SubscriptionStatusUnpaid || s.Status == stripe.SubscriptionStatusIncompleteExpired || s.Status == stripe.SubscriptionStatusPaused || (s.Status == stripe.SubscriptionStatusPastDue && cfg.StopAgentOnPaymentFailure) {
 					desired = "stopped"
 				}
 				if desired != "" {

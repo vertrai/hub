@@ -38,7 +38,7 @@ miniProgram:
   weixinAPIBase: https://api.weixin.qq.com
 
 # Stripe 服务端配置；每个助手的价格 ID 在“助手管理 → 运行设置”填写。
-stripe:
+stripe: # 首次默认值；后台 /admin/stripe 保存后以数据库设置为准
   enabled: false
   secretKey: ""
   webhookSecret: ""

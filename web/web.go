@@ -81,6 +81,12 @@ var navigationHTML []byte
 //go:embed invite_codes.html
 var inviteCodesHTML []byte
 
+//go:embed stripe.html
+var stripeHTML []byte
+
+//go:embed stripe-settings.js
+var stripeSettingsJS []byte
+
 //go:embed commerce.js
 var commerceJS []byte
 
@@ -95,6 +101,8 @@ func RegisterRoutes(routes *gin.Engine, authentication gin.HandlerFunc) {
 	routes.GET("/admin/login", func(c *gin.Context) { renderAdminDocument(c, loginHTML) })
 	protected := routes.Group("", authentication)
 	protected.GET("/admin", adminPage)
+	protected.GET("/admin/stripe", func(c *gin.Context) { renderAdminDocument(c, stripeHTML) })
+	routes.GET("/admin/assets/stripe-settings.js", func(c *gin.Context) { c.Data(200, "application/javascript; charset=utf-8", stripeSettingsJS) })
 	protected.GET("/admin/invite-codes", func(c *gin.Context) { renderAdminDocument(c, inviteCodesHTML) })
 	routes.GET("/admin/assets/commerce.js", func(c *gin.Context) { c.Data(200, "application/javascript; charset=utf-8", commerceJS) })
 	routes.GET("/app", func(c *gin.Context) {

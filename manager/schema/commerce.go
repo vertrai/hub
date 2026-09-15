@@ -72,3 +72,12 @@ type StripeEvent struct {
 }
 
 func (StripeEvent) TableName() string { return "manager_stripe_events" }
+
+// StripeSettings stores only encrypted configuration; secrets never appear in API responses.
+type StripeSettings struct {
+	ID              string    `gorm:"primaryKey;size:32" json:"-"`
+	EncryptedConfig []byte    `gorm:"not null" json:"-"`
+	UpdatedAt       time.Time `json:"-"`
+}
+
+func (StripeSettings) TableName() string { return "manager_stripe_settings" }
