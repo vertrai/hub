@@ -80,6 +80,12 @@ func (m *Manager) createCheckoutSession(c *gin.Context) {
 		if !errors.Is(e, gorm.ErrRecordNotFound) {
 			return e
 		}
+		if e := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&entry, "id = ? AND product_id = ? AND published = ?", entry.ID, req.Product, true).Error; e != nil {
+			return e
+		}
+		if entry.Module == "" || entry.StripePriceID == "" {
+			return errors.New("subscription product is unavailable")
+		}
 		record = schema.Billing{ID: commerceID("bill_"), UserID: user.ID, Product: req.Product, CatalogID: entry.ID, Module: entry.Module, PriceID: entry.StripePriceID, Status: "checkout_pending"}
 		return tx.Create(&record).Error
 	})

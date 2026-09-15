@@ -98,19 +98,14 @@ func (m *Manager) generateInviteCodes(c *gin.Context) {
 		c.JSON(400, gin.H{"error": "expiry must be in the future"})
 		return
 	}
-	if req.Product != "" {
-		var count int64
-		if err := m.wdb.Db.Model(&schema.AgentCatalogEntry{}).Where("product_id = ?", req.Product).Count(&count).Error; err != nil {
-			c.JSON(500, gin.H{"error": "cannot validate product"})
-			return
-		}
-		if count != 1 {
-			c.JSON(400, gin.H{"error": "unknown product"})
-			return
-		}
-	}
 	rows := make([]schema.InviteCode, 0, req.Count)
 	err := m.wdb.Db.Transaction(func(tx *gorm.DB) error {
+		if req.Product != "" {
+			var entry schema.AgentCatalogEntry
+			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&entry, "product_id = ?", req.Product).Error; err != nil {
+				return err
+			}
+		}
 		const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 		for attempts := 0; len(rows) < req.Count && attempts < req.Count*10; attempts++ {
 			code := make([]byte, 6)
@@ -135,6 +130,10 @@ func (m *Manager) generateInviteCodes(c *gin.Context) {
 		}
 		return nil
 	})
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		c.JSON(400, gin.H{"error": "unknown product"})
+		return
+	}
 	if err != nil {
 		c.JSON(500, gin.H{"error": "cannot create invitation codes"})
 		return
@@ -217,6 +216,12 @@ func (m *Manager) redeemInvite(c *gin.Context, product string) {
 func (m *Manager) reserveInviteAgent(code, user, product string, entry schema.AgentCatalogEntry) (schema.WebAgent, error) {
 	var a schema.WebAgent
 	err := m.wdb.Db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&entry, "id = ? AND product_id = ? AND published = ?", entry.ID, product, true).Error; err != nil {
+			return err
+		}
+		if entry.Module == "" {
+			return errors.New("product is not available")
+		}
 		var invite schema.InviteCode
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&invite, "code = ?", code).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {

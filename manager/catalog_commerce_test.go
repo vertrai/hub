@@ -101,3 +101,35 @@ func TestCatalogCommerceValidation(t *testing.T) {
 		t.Fatal("non-commerce catalog rejected", err)
 	}
 }
+
+func TestCatalogCommerceRedemptionRechecksCatalog(t *testing.T) {
+	m := newCommerceTestManager(t)
+	entry, err := m.commerceProduct("x_agent")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := m.wdb.Db.Create(&schema.InviteCode{Code: "ABCDEF", Product: "x_agent"}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := m.wdb.Db.Model(&entry).Update("module", "updated_module").Error; err != nil {
+		t.Fatal(err)
+	}
+	entry.Module = "stale_module"
+	agent, err := m.reserveInviteAgent("ABCDEF", "buyer", "x_agent", entry)
+	if err != nil || agent.Module != "updated_module" {
+		t.Fatalf("redemption used stale catalog: %+v, %v", agent, err)
+	}
+	if err := m.wdb.Db.Create(&schema.InviteCode{Code: "GHJKLM"}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := m.wdb.Db.Model(&entry).Update("published", false).Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.reserveInviteAgent("GHJKLM", "buyer", "x_agent", entry); err == nil {
+		t.Fatal("redeemed unpublished product from stale catalog")
+	}
+	var invite schema.InviteCode
+	if err := m.wdb.Db.First(&invite, "code = ?", "GHJKLM").Error; err != nil || invite.UsedAt != nil {
+		t.Fatal("failed redemption consumed invitation", err)
+	}
+}
