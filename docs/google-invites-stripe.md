@@ -46,7 +46,7 @@
 
 ## 配置与切换
 
-1. 运行数据库迁移（Manager 启动 AutoMigrate），配置 `auth.google`/`auth.jwt`。Google Client ID 必须匹配 vertr.ai 页面；Google Console 授权相应站点 origin。
+1. 先执行 `./manager --config config.yaml migrate` 完成数据库迁移（失败时不要启动新版本；普通启动不再运行 AutoMigrate），配置 `auth.google`/`auth.jwt`。Google Client ID 必须匹配 vertr.ai 页面；Google Console 授权相应站点 origin。
 2. 在 `deployment` 填写网站与小程序共用的节点、签名私钥、Gateway URL、Hermes Gateway Token。后台“助手管理 → 运行与上架设置”配置模块、网站商品标识、Stripe 价格 ID 并上架；先用测试账号验证模块。
 3. 配置 Stripe 测试密钥、Webhook secret、success/cancel/portal URL；Checkout 成功页 URL 需包含 `{CHECKOUT_SESSION_ID}`。本地 website 有 checkout-success.html，但正式站点路径需部署时核对。
 4. Stripe 配置事件：checkout.session.completed/expired、invoice.paid/payment_failed、customer.subscription.updated/deleted。先用测试订阅验证。

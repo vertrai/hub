@@ -30,10 +30,21 @@ func main() {
 
 	if err := app.Run(os.Args); err != nil {
 		log.Error("run server failed", "err", err)
+		os.Exit(1)
 	}
 }
 
 func action(c *cli.Context) error {
+	started := time.Now()
+	log.Info("manager startup started")
+	if err := loadConfig(c); err != nil {
+		return err
+	}
+	log.Info("manager startup stage completed", "stage", "config_load", "elapsed", time.Since(started))
+	return run(c)
+}
+
+func loadConfig(c *cli.Context) error {
 	configPath := c.String("config")
 	if configPath == "" {
 		configPath = DefaultConfig
@@ -43,10 +54,11 @@ func action(c *cli.Context) error {
 	if err := viper.ReadInConfig(); err != nil {
 		return err
 	}
-	return run(c)
+	return nil
 }
 
 func run(_ *cli.Context) error {
+	started := time.Now()
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
 
@@ -65,6 +77,8 @@ func run(_ *cli.Context) error {
 		_ = wdb.Close()
 		return err
 	}
+	stage := time.Now()
+	log.Info("manager startup stage started", "stage", "service_init")
 	service, err := manager.New(viper.GetString("env"), manager.Config{
 		Deployment: deployment,
 		Stripe:     manager.StripeConfig{Enabled: viper.GetBool("stripe.enabled"), SecretKey: viper.GetString("stripe.secretKey"), WebhookSecret: viper.GetString("stripe.webhookSecret"), SuccessURL: viper.GetString("stripe.successURL"), CancelURL: viper.GetString("stripe.cancelURL"), PortalReturnURL: viper.GetString("stripe.portalReturnURL"), ManagedPayments: viper.GetBool("stripe.managedPayments"), RequireTermsOfServiceConsent: viper.GetBool("stripe.requireTermsOfServiceConsent"), StopAgentOnPaymentFailure: viper.GetBool("stripe.stopAgentOnPaymentFailure")},
@@ -87,6 +101,8 @@ func run(_ *cli.Context) error {
 		return err
 	}
 
+	log.Info("manager startup stage completed", "stage", "service_init", "elapsed", time.Since(stage))
+	log.Info("manager starting HTTP server and workers", "startup_elapsed", time.Since(started))
 	service.Run(viper.GetString("port"))
 	<-signals
 	service.Close()

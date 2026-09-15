@@ -169,6 +169,7 @@ cp ./cmd/resouces/config.example.yaml ./cmd/resouces/config.yaml
 cp ./cmd/manager/config.example.yaml ./cmd/manager/config.yaml
 go run ./cmd/resouces --config ./cmd/resouces/config.yaml
 # 另一个终端
+go run ./cmd/manager --config ./cmd/manager/config.yaml migrate
 go run ./cmd/manager --config ./cmd/manager/config.yaml
 ```
 
@@ -241,3 +242,18 @@ POST /v1/admin/telegram/bots/create     # body: {"count": 1}
 ```
 
 授权完成后，服务每分钟检查一次可用 Bot 数量，并通过 BotFather 自动补充到 `telegram.minAvailableBots`。遇到 Telegram `FLOOD_WAIT` 会进入冷却期，期间自动创建接口返回 `429`，而手动导入仍然可用。Telegram MTProto Session 保存在 `telegram.dataDir`，必须使用持久化私有目录，不能提交到 Git。
+
+### Manager 数据库迁移与启动
+
+Manager 普通启动（包括 `start`）仅连接数据库，不再自动执行表结构迁移。首次部署及升级版本时，先运行迁移；普通重启无需迁移。迁移会保留原有的旧表改名、AutoMigrate 和旧索引清理逻辑。
+
+```bash
+# 部署：迁移成功后再启动，失败返回非零退出码
+./manager --config config.yaml migrate && ./manager --config config.yaml start
+
+# 普通重启
+./manager stop
+./manager --config config.yaml start
+```
+
+请在部署流程中显式执行 `migrate`；未迁移的新库或旧结构可能导致业务接口报错。迁移命令不启动 HTTP 服务或后台部署任务。
