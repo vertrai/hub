@@ -17,9 +17,18 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+var errProductIdentityChange = errors.New("网站商品标识保存后不可修改；停用商品请下架助手")
+var websiteProductID = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
+var stripePriceID = regexp.MustCompile(`^price_[A-Za-z0-9]+$`)
 var catalogID = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,63}$`)
 
 func validateCatalogEntry(a schema.AgentCatalogEntry) error {
+	if a.ProductID != "" && !websiteProductID.MatchString(a.ProductID) {
+		return errors.New("网站商品标识仅支持小写字母、数字、下划线和连字符，最多 64 位")
+	}
+	if a.StripePriceID != "" && (a.ProductID == "" || len(a.StripePriceID) > 255 || !stripePriceID.MatchString(a.StripePriceID)) {
+		return errors.New("请先填写网站商品标识，并使用 Stripe 的 price_ 开头价格 ID")
+	}
 	if !catalogID.MatchString(a.ID) {
 		return errors.New("助手 ID 仅支持小写字母、数字和连字符，最多 64 位")
 	}
@@ -131,6 +140,15 @@ func (m *Manager) listMyMiniProgramAgents(c *gin.Context) {
 	c.JSON(200, gin.H{"tasks": result})
 }
 func catalogError(c *gin.Context, err error) {
+	var sqlState interface{ SQLState() string }
+	if errors.Is(err, errProductIdentityChange) {
+		c.JSON(409, gin.H{"error": err.Error()})
+		return
+	}
+	if (errors.As(err, &sqlState) && sqlState.SQLState() == "23505") || strings.Contains(err.Error(), "UNIQUE constraint failed") {
+		c.JSON(409, gin.H{"error": "网站商品标识已绑定其他助手，请使用不同标识"})
+		return
+	}
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		c.JSON(404, gin.H{"error": "未找到助手"})
 	} else {
@@ -162,6 +180,8 @@ func (m *Manager) adminSaveAgentCatalog(c *gin.Context) {
 		a.ID = generatedCatalogID(a.Name)
 	}
 	a.Module = strings.TrimSpace(a.Module)
+	a.ProductID = strings.TrimSpace(a.ProductID)
+	a.StripePriceID = strings.TrimSpace(a.StripePriceID)
 	if err := validateCatalogEntry(a); err != nil {
 		c.JSON(400, gin.H{"error": err.Error()})
 		return
@@ -177,7 +197,7 @@ func (m *Manager) adminSaveAgentCatalog(c *gin.Context) {
 		result := m.wdb.Db.Clauses(clause.OnConflict{DoNothing: true}).Create(&a)
 		err = result.Error
 		if err == nil && result.RowsAffected == 0 {
-			c.JSON(409, gin.H{"error": "已有同名助手或相同 ID，请编辑已有助手或修改名称"})
+			c.JSON(409, gin.H{"error": "已有同名助手、相同 ID 或重复网站商品标识，请检查配置"})
 			return
 		}
 	} else {
@@ -185,6 +205,9 @@ func (m *Manager) adminSaveAgentCatalog(c *gin.Context) {
 			var old schema.AgentCatalogEntry
 			if e := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&old, "id = ?", a.ID).Error; e != nil {
 				return e
+			}
+			if old.ProductID != "" && old.ProductID != a.ProductID {
+				return errProductIdentityChange
 			}
 			a.CreatedAt = old.CreatedAt
 			return tx.Save(&a).Error
@@ -214,6 +237,22 @@ func (m *Manager) adminDeleteAgentCatalog(c *gin.Context) {
 		}
 		if count > 0 {
 			return errors.New("已有用户创建记录，请保留配置并使用下架")
+		}
+		for _, model := range []any{&schema.WebAgent{}, &schema.Billing{}} {
+			if err := tx.Model(model).Where("catalog_id = ?", a.ID).Count(&count).Error; err != nil {
+				return err
+			}
+			if count > 0 {
+				return errors.New("已有网站实例或订单，请保留配置并使用下架")
+			}
+		}
+		if a.ProductID != "" {
+			if err := tx.Model(&schema.InviteCode{}).Where("product = ?", a.ProductID).Count(&count).Error; err != nil {
+				return err
+			}
+			if count > 0 {
+				return errors.New("已有商品邀请码，请保留配置并使用下架")
+			}
 		}
 		return tx.Delete(&a).Error
 	})

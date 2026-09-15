@@ -23,7 +23,7 @@ func (m *Manager) hymatrixAdminURL(adminURL, nodeURL string) (string, error) {
 	if value := strings.TrimSpace(adminURL); value != "" {
 		return value, nil
 	}
-	if value := strings.TrimSpace(m.config.MiniProgram.AdminURL); value != "" {
+	if value := strings.TrimSpace(m.config.Deployment.AdminURL); value != "" {
 		return value, nil
 	}
 	base, err := url.Parse(strings.TrimSpace(nodeURL))

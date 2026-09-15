@@ -22,37 +22,22 @@ resources:
   adminAPIKey: must-match-resouces-admin-api-key
   timeout: 30s
 
-# 小程序一键创建 Hermes Agent。所有敏感配置只保存在 manager 服务端。
+# 网站与小程序共用这一份自动部署配置。模块和商品价格在 /admin/agents 配置。
+deployment:
+  nodeURL: https://your-hymatrix-node.example # 创建、启动 Agent 的节点地址
+  adminURL: http://your-hymatrix-node.example:9091 # 停用/恢复 VM 的内网接口
+  privateKey: "" # 签署节点交易的私钥
+  runtimeType: hermes
+  gatewayURL: https://your-manager.example # Agent 访问 Hub 资源的地址
+  hermesGatewayToken: "" # 注入 Hermes API/Gateway 的访问密钥
+
+# 仅用于微信小程序身份认证，不再单独配置部署节点。
 miniProgram:
   appId: ""
   appSecret: ""
   weixinAPIBase: https://api.weixin.qq.com
-  pod:
-    nodeURL: https://your-hymatrix-node.example
-    adminURL: http://your-hymatrix-node.example:9091
-    privateKey: ""
-    # 助手模块统一在 Manager 的“助手管理”中设置。
-    runtimeType: hermes
-  agent:
-    gatewayURL: https://your-manager.example
-    hermesGatewayToken: ""
-    # LLM 配置通过此 Agent 的 Hub API Key 自动申请，在 /admin/llm 设置默认模型。
 
-# vertr.ai 兼容 API。产品标识保持前端协议，catalogId 指向后台助手目录。
-# 对应模块须实现 Hub Hermes 的 Start-Agent 协议。
-commerce:
-  nodeURL: ""
-  adminURL: "" # 节点需支持 /admin/vms/stop 和 /admin/vms/resume
-  privateKey: ""
-  gatewayURL: ""
-  hermesGatewayToken: ""
-  products:
-    telegram_customer_agent:
-      catalogId: ""
-      priceId: ""
-    x_agent:
-      catalogId: ""
-      priceId: ""
+# Stripe 服务端配置；每个助手的价格 ID 在“助手管理 → 运行设置”填写。
 stripe:
   enabled: false
   secretKey: ""

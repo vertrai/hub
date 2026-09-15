@@ -60,8 +60,8 @@ func (m *Manager) createCheckoutSession(c *gin.Context) {
 		c.JSON(503, gin.H{"error": "Stripe checkout is not configured"})
 		return
 	}
-	product, entry, err := m.commerceProduct(req.Product)
-	if err != nil || product.PriceID == "" {
+	entry, err := m.commerceProduct(req.Product)
+	if err != nil || entry.StripePriceID == "" {
 		c.JSON(503, gin.H{"error": "subscription product is unavailable"})
 		return
 	}
@@ -80,7 +80,7 @@ func (m *Manager) createCheckoutSession(c *gin.Context) {
 		if !errors.Is(e, gorm.ErrRecordNotFound) {
 			return e
 		}
-		record = schema.Billing{ID: commerceID("bill_"), UserID: user.ID, Product: req.Product, CatalogID: entry.ID, Module: entry.Module, PriceID: product.PriceID, Status: "checkout_pending"}
+		record = schema.Billing{ID: commerceID("bill_"), UserID: user.ID, Product: req.Product, CatalogID: entry.ID, Module: entry.Module, PriceID: entry.StripePriceID, Status: "checkout_pending"}
 		return tx.Create(&record).Error
 	})
 	if err != nil {

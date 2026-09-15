@@ -333,6 +333,11 @@
               <p class="note">
                 每个助手都需要设置已部署的模块。模块变更只用于之后创建的实例。
               </p>
+              <h3>网站订阅与邀请码</h3>
+              <label>网站商品标识<input name="productId" maxlength="64" placeholder="例如 telegram_customer_agent 或 x_agent" /></label>
+              <p class="note">选填。填写后可在网站购买或兑换此助手。须与网站商品标识一致；首次保存后固定。留空则不作为网站商品。</p>
+              <label>Stripe 价格 ID<input name="stripePriceId" maxlength="255" placeholder="price_…" /></label>
+              <p class="note">在 Stripe 商品的价格详情中复制价格 ID，不是 prod_ 开头的商品 ID。留空时只开放邀请码。价格修改只用于新订单。</p>
               <div class="row">
                 <label
                   >排序（数字越小越靠前）<input
@@ -348,7 +353,7 @@
                   />在助手广场上架</label
                 >
               </div>
-              <p class="note">下架仅从助手广场隐藏，不影响直接访问和已有助手。</p>
+              <p class="note">下架后从助手广场隐藏，并停止网站新购买和兑换；不停止已有助手。小程序详情仍可直接访问。</p>
               </section>
               <div class="actions editor-savebar">
                 <button id="save" type="submit">保存助手</button
@@ -379,6 +384,8 @@
         "capabilityCopy",
         "creationDetail",
         "module",
+        "productId",
+        "stripePriceId",
       ];
       const form = $("editor");
       function edit(a) {
@@ -393,6 +400,7 @@
         for (const key of fields) form.elements[key].value = a?.[key] || "";
 
         form.elements.capabilities.value = (a?.capabilities || []).join("\n");
+        form.elements.productId.readOnly = !!a?.productId;
         form.elements.sortOrder.value = a?.sortOrder || 0;
         form.elements.published.checked = !!a?.published;
         $("form-title").textContent = a ? "编辑 " + a.name : "新增助手";

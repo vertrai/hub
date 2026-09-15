@@ -110,7 +110,7 @@ func (m *Manager) reconcileWebAgent(ctx context.Context, a *schema.WebAgent) err
 			return m.finishWebAgent(a, "running")
 		}
 	}
-	cfg := m.config.Commerce
+	cfg := m.config.Deployment
 	if a.AccessKeyID == "" {
 		if err := m.agentPhase(a, "allocating"); err != nil {
 			return err

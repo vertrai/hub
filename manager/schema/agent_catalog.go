@@ -5,6 +5,8 @@ import "time"
 // ID is the stable business identity, retained in MiniProgramAgentTask.Template.
 // Module is only returned to administrators, never to mini-program clients.
 type AgentCatalogEntry struct {
+	ProductID         string    `gorm:"size:64;not null;default:'';uniqueIndex:idx_manager_catalog_product,where:product_id <> ''" json:"productId"`
+	StripePriceID     string    `gorm:"size:255" json:"stripePriceId"`
 	ID                string    `gorm:"primaryKey;size:64" json:"id"`
 	Name              string    `gorm:"size:80;not null" json:"name"`
 	LogoURL           string    `json:"logoUrl"`

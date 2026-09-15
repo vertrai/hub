@@ -27,7 +27,7 @@ func catalogFixture(t *testing.T) *Manager {
 	}
 	sqlDB, _ := db.DB()
 	t.Cleanup(func() { sqlDB.Close() })
-	if err = db.AutoMigrate(&schema.User{}, &schema.MiniProgramAgentTask{}, &schema.AgentCatalogEntry{}, &schema.AgentCatalogImage{}, &schema.HymatrixPod{}); err != nil {
+	if err = db.AutoMigrate(&schema.WebAgent{}, &schema.Billing{}, &schema.InviteCode{}, &schema.User{}, &schema.MiniProgramAgentTask{}, &schema.AgentCatalogEntry{}, &schema.AgentCatalogImage{}, &schema.HymatrixPod{}); err != nil {
 		t.Fatal(err)
 	}
 	tx := db.Begin()

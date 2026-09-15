@@ -29,9 +29,9 @@ func newCommerceTestManager(t *testing.T) *Manager {
 	if err := m.wdb.Db.AutoMigrate(&schema.User{}, &schema.AccessKey{}, &schema.HymatrixPod{}, &schema.AgentCatalogEntry{}, &schema.InviteCode{}, &schema.WebAgent{}, &schema.Billing{}, &schema.StripeEvent{}); err != nil {
 		t.Fatal(err)
 	}
-	m.config.Commerce = CommerceConfig{Products: map[string]CommerceProduct{"x_agent": {CatalogID: "x", PriceID: "price_x"}}, NodeURL: "https://node.example", PrivateKey: "configured", GatewayURL: "https://hub.example", HermesGatewayToken: "configured"}
+	m.config.Deployment = DeploymentConfig{RuntimeType: "hermes", NodeURL: "https://node.example", PrivateKey: "configured", GatewayURL: "https://hub.example", HermesGatewayToken: "configured"}
 	m.config.Stripe = StripeConfig{Enabled: true, SecretKey: "sk_test", WebhookSecret: "whsec_test", SuccessURL: "https://vertr.ai/success", CancelURL: "https://vertr.ai/cancel", PortalReturnURL: "https://vertr.ai/agents", StopAgentOnPaymentFailure: true}
-	if err := m.wdb.Db.Create(&schema.AgentCatalogEntry{ID: "x", Name: "X", Module: "module_x", Published: true}).Error; err != nil {
+	if err := m.wdb.Db.Create(&schema.AgentCatalogEntry{ID: "x", Name: "X", Module: "module_x", Published: true, ProductID: "x_agent", StripePriceID: "price_x"}).Error; err != nil {
 		t.Fatal(err)
 	}
 	return m

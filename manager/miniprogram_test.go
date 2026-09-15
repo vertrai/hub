@@ -73,22 +73,22 @@ func TestExchangeMiniProgramCodeUsesCode2Session(t *testing.T) {
 }
 
 func TestMiniProgramConfigRejectsMissingServerSecrets(t *testing.T) {
-	if err := validateMiniProgramConfig(MiniProgramConfig{}); err == nil || !strings.Contains(err.Error(), "miniProgram.") {
+	if err := validateMiniProgramConfig(MiniProgramConfig{}, DeploymentConfig{}); err == nil || !strings.Contains(err.Error(), "miniProgram.") {
 		t.Fatalf("expected actionable config error, got %v", err)
 	}
 }
 
 func TestMiniProgramPodRuntimeMustRemainHermes(t *testing.T) {
-	cfg := MiniProgramConfig{
-		AppID: "app", AppSecret: "secret", WeixinAPIBase: "https://api.weixin.qq.com",
+	identity := MiniProgramConfig{AppID: "app", AppSecret: "secret", WeixinAPIBase: "https://api.weixin.qq.com"}
+	cfg := DeploymentConfig{
 		NodeURL: "https://node", PrivateKey: "key", RuntimeType: "docker",
 		GatewayURL: "https://gateway", HermesGatewayToken: "token",
 	}
-	if err := validateMiniProgramConfig(cfg); err == nil || !strings.Contains(err.Error(), "must be hermes") {
+	if err := validateMiniProgramConfig(identity, cfg); err == nil || !strings.Contains(err.Error(), "must be hermes") {
 		t.Fatalf("expected non-Hermes runtime rejection, got %v", err)
 	}
 	cfg.RuntimeType = "hermes"
-	if err := validateMiniProgramConfig(cfg); err != nil {
+	if err := validateMiniProgramConfig(identity, cfg); err != nil {
 		t.Fatalf("Hermes runtime rejected: %v", err)
 	}
 }

@@ -64,7 +64,7 @@ func TestMiniProgramProvisionAllocatesLLMBeforePod(t *testing.T) {
 				})}
 				// Empty runtime stops at Spawn validation, after the real Pod persistence,
 				// without creating a remote container or requiring a node SDK test double.
-				m.config.MiniProgram = MiniProgramConfig{NodeURL: "https://1.1.1.1", PrivateKey: strings.Repeat("0", 63) + "1"}
+				m.config.Deployment = DeploymentConfig{NodeURL: "https://1.1.1.1", PrivateKey: strings.Repeat("0", 63) + "1"}
 				task := schema.MiniProgramAgentTask{ID: "task", UserID: "wx-test", Template: template, ModuleSnapshot: "configured-module", Status: schema.MiniProgramTaskSpawning}
 				if err := m.wdb.Db.Create(&task).Error; err != nil {
 					t.Fatal(err)

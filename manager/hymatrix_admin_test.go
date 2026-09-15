@@ -63,7 +63,7 @@ func TestHymatrixAdminURLSupportsLegacyPods(t *testing.T) {
 	if got, err := service.hymatrixAdminURL("", "http://52.220.233.136:8081/node"); err != nil || got != "http://52.220.233.136:9091" {
 		t.Fatalf("derived admin URL = %q, err = %v", got, err)
 	}
-	service.config.MiniProgram.AdminURL = "http://node.internal:9082"
+	service.config.Deployment.AdminURL = "http://node.internal:9082"
 	if got, err := service.hymatrixAdminURL("", "http://node:8081"); err != nil || got != "http://node.internal:9082" {
 		t.Fatalf("configured admin URL = %q, err = %v", got, err)
 	}

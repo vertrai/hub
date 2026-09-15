@@ -15,15 +15,6 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-type CommerceProduct struct {
-	CatalogID string
-	PriceID   string
-}
-type CommerceConfig struct {
-	Products                                                      map[string]CommerceProduct
-	NodeURL, AdminURL, PrivateKey, GatewayURL, HermesGatewayToken string
-}
-
 func commerceID(prefix string) string {
 	var b [16]byte
 	if _, err := rand.Read(b[:]); err != nil {
@@ -60,28 +51,32 @@ func (m *Manager) registerCommerceRoutes(r *gin.Engine) {
 	admin.GET("/web-agents", m.adminWebAgents)
 	admin.POST("/web-agents/:id/retry", m.retryWebAgent)
 }
-func (m *Manager) commerceProduct(product string) (CommerceProduct, schema.AgentCatalogEntry, error) {
-	p, ok := m.config.Commerce.Products[product]
-	if !ok || p.CatalogID == "" {
-		return p, schema.AgentCatalogEntry{}, errors.New("product is not configured")
-	}
+func (m *Manager) commerceProduct(product string) (schema.AgentCatalogEntry, error) {
 	var entry schema.AgentCatalogEntry
-	if err := m.wdb.Db.First(&entry, "id = ? AND published = ?", p.CatalogID, true).Error; err != nil || entry.Module == "" {
-		return p, entry, errors.New("product is not available")
+	if strings.TrimSpace(product) == "" {
+		return entry, errors.New("product is required")
 	}
-	cfg := m.config.Commerce
-	if cfg.NodeURL == "" || cfg.PrivateKey == "" || cfg.GatewayURL == "" || cfg.HermesGatewayToken == "" {
-		return p, entry, errors.New("web agent deployment is not configured")
+	if err := m.wdb.Db.First(&entry, "product_id = ? AND published = ?", product, true).Error; err != nil || entry.Module == "" {
+		return entry, errors.New("product is not available")
 	}
-	return p, entry, nil
+	if err := validateDeploymentConfig(m.config.Deployment); err != nil {
+		return entry, err
+	}
+	return entry, nil
 }
 func (m *Manager) listCommerceProducts(c *gin.Context) {
 	items := []gin.H{}
-	for product := range m.config.Commerce.Products {
-		p, e, err := m.commerceProduct(product)
-		if err == nil {
-			items = append(items, gin.H{"product": product, "name": e.Name, "catalogId": e.ID, "subscriptionAvailable": m.config.Stripe.Enabled && p.PriceID != ""})
-		}
+	if err := validateDeploymentConfig(m.config.Deployment); err != nil {
+		c.JSON(503, gin.H{"error": err.Error()})
+		return
+	}
+	var entries []schema.AgentCatalogEntry
+	if err := m.wdb.Db.Where("product_id <> '' AND published = ?", true).Order("sort_order, id").Find(&entries).Error; err != nil {
+		c.JSON(500, gin.H{"error": "cannot list products"})
+		return
+	}
+	for _, entry := range entries {
+		items = append(items, gin.H{"product": entry.ProductID, "name": entry.Name, "catalogId": entry.ID, "subscriptionAvailable": m.config.Stripe.Enabled && entry.StripePriceID != ""})
 	}
 	c.JSON(200, gin.H{"items": items})
 }
@@ -104,7 +99,12 @@ func (m *Manager) generateInviteCodes(c *gin.Context) {
 		return
 	}
 	if req.Product != "" {
-		if _, ok := m.config.Commerce.Products[req.Product]; !ok {
+		var count int64
+		if err := m.wdb.Db.Model(&schema.AgentCatalogEntry{}).Where("product_id = ?", req.Product).Count(&count).Error; err != nil {
+			c.JSON(500, gin.H{"error": "cannot validate product"})
+			return
+		}
+		if count != 1 {
 			c.JSON(400, gin.H{"error": "unknown product"})
 			return
 		}
@@ -198,7 +198,7 @@ func (m *Manager) redeemInvite(c *gin.Context, product string) {
 	if product == "" {
 		product = req.Product
 	}
-	_, entry, err := m.commerceProduct(product)
+	entry, err := m.commerceProduct(product)
 	if err != nil {
 		c.JSON(503, gin.H{"error": err.Error()})
 		return

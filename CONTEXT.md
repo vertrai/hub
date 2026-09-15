@@ -34,4 +34,4 @@ _Avoid_: platform token, user token.
 
 **Invite Code**: A single-use grant of one Web Agent, optionally restricted to a product and expiry. Redemption and instance reservation commit together.
 
-**Billing**: A Manager order associated with a Stripe subscription and a Web Agent. A verified webhook updates billing and desired instance state transactionally; deployment runs separately. Product configuration maps the website product identifier to a catalog entry and Stripe Price ID.
+**Billing**: A Manager order associated with a Stripe subscription and a Web Agent. A verified webhook updates billing and desired instance state transactionally; deployment runs separately. Each Catalog Entry optionally owns a unique, stable website Product ID and an editable Stripe Price ID. Website and mini-program provisioning share one DeploymentConfig.

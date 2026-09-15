@@ -16,7 +16,7 @@ import (
 var log = common.NewLog("manager")
 
 type Config struct {
-	Commerce    CommerceConfig
+	Deployment  DeploymentConfig
 	Stripe      StripeConfig
 	AdminGoogle AdminGoogleConfig
 	Resources   ResourcesConfig
@@ -25,9 +25,12 @@ type Config struct {
 
 type MiniProgramConfig struct {
 	AppID, AppSecret, WeixinAPIBase string
-	NodeURL, AdminURL, PrivateKey   string
-	RuntimeType, GatewayURL         string
-	HermesGatewayToken              string
+}
+
+// DeploymentConfig is shared by website and mini-program provisioning.
+type DeploymentConfig struct {
+	NodeURL, AdminURL, PrivateKey               string
+	RuntimeType, GatewayURL, HermesGatewayToken string
 }
 
 type AdminGoogleConfig struct {

@@ -63,7 +63,7 @@ func (m *Manager) spawnMiniProgramAgent(c *gin.Context) {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "manager database is unavailable"})
 		return
 	}
-	if err := validateMiniProgramConfig(m.config.MiniProgram); err != nil {
+	if err := validateMiniProgramConfig(m.config.MiniProgram, m.config.Deployment); err != nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": err.Error()})
 		return
 	}
@@ -375,7 +375,7 @@ func (m *Manager) provisionMiniProgramPod(ctx context.Context, task *schema.Mini
 	if err != nil {
 		return fmt.Errorf("allocate LLM resource: %w", err)
 	}
-	cfg := m.config.MiniProgram
+	cfg := m.config.Deployment
 	module := task.ModuleSnapshot
 	if module == "" {
 		return fmt.Errorf("module is not configured for template %q", task.Template)
@@ -445,7 +445,7 @@ func (m *Manager) startMiniProgramPod(ctx context.Context, task *schema.MiniProg
 	}); err != nil {
 		return err
 	}
-	cfg := m.config.MiniProgram
+	cfg := m.config.Deployment
 	client, err := NewHymatrixClient(HymatrixConfig{NodeURL: pod.NodeURL, PrivateKey: pod.PrivateKey, Module: pod.Module, Scheduler: pod.Scheduler, LLMAPIKey: resource.APIKey, LLMBaseURL: resource.BaseURL, LLMModel: resource.Model, LLMProvider: resource.Provider})
 	if err == nil {
 		err = client.StartAgent(ctx, pod.PID, PodStartInput{GatewayURL: cfg.GatewayURL, GatewayAPIKey: accessKey.Secret, HermesGatewayToken: cfg.HermesGatewayToken, WeixinAccountID: bot.AccountID, WeixinToken: bot.Token, WeixinBaseURL: bot.BaseURL, WeixinAllowedUsers: bot.AllowedUserID})
@@ -500,25 +500,28 @@ func (m *Manager) exchangeMiniProgramCode(ctx context.Context, code string) (str
 	return payload.OpenID, nil
 }
 
-func validateMiniProgramConfig(cfg MiniProgramConfig) error {
-	values := map[string]string{"appId": cfg.AppID, "appSecret": cfg.AppSecret, "pod.nodeURL": cfg.NodeURL, "pod.privateKey": cfg.PrivateKey, "pod.runtimeType": cfg.RuntimeType, "agent.gatewayURL": cfg.GatewayURL, "agent.hermesGatewayToken": cfg.HermesGatewayToken}
-	for name, value := range values {
+func validateMiniProgramConfig(cfg MiniProgramConfig, deployment DeploymentConfig) error {
+	if err := validateMiniProgramIdentityConfig(cfg); err != nil {
+		return err
+	}
+	return validateDeploymentConfig(deployment)
+}
+
+func validateDeploymentConfig(cfg DeploymentConfig) error {
+	for name, value := range map[string]string{"nodeURL": cfg.NodeURL, "privateKey": cfg.PrivateKey, "gatewayURL": cfg.GatewayURL, "hermesGatewayToken": cfg.HermesGatewayToken} {
 		if strings.TrimSpace(value) == "" {
-			return fmt.Errorf("miniProgram.%s is not configured", name)
+			return fmt.Errorf("deployment.%s is not configured", name)
 		}
 	}
-	if cfg.WeixinAPIBase == "" {
-		return fmt.Errorf("miniProgram.weixinAPIBase is not configured")
-	}
 	if cfg.RuntimeType != "hermes" {
-		return fmt.Errorf("miniProgram.pod.runtimeType must be hermes")
+		return fmt.Errorf("deployment.runtimeType must be hermes")
 	}
 	return nil
 }
 
 func validateMiniProgramIdentityConfig(cfg MiniProgramConfig) error {
 	if strings.TrimSpace(cfg.AppID) == "" || strings.TrimSpace(cfg.AppSecret) == "" || strings.TrimSpace(cfg.WeixinAPIBase) == "" {
-		return fmt.Errorf("miniProgram appId, appSecret and weixinAPIBase are required")
+		return fmt.Errorf("miniProgram.appId, miniProgram.appSecret and miniProgram.weixinAPIBase are required")
 	}
 	return nil
 }
