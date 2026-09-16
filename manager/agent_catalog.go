@@ -22,12 +22,19 @@ var websiteProductID = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
 var stripePriceID = regexp.MustCompile(`^price_[A-Za-z0-9]+$`)
 var catalogID = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,63}$`)
 
-func validateCatalogEntry(a schema.AgentCatalogEntry) error {
+func validateCatalogCommerce(a schema.AgentCatalogEntry) error {
 	if a.ProductID != "" && !websiteProductID.MatchString(a.ProductID) {
 		return errors.New("网站商品标识仅支持小写字母、数字、下划线和连字符，最多 64 位")
 	}
 	if a.StripePriceID != "" && (a.ProductID == "" || len(a.StripePriceID) > 255 || !stripePriceID.MatchString(a.StripePriceID)) {
 		return errors.New("请先填写网站商品标识，并使用 Stripe 的 price_ 开头价格 ID")
+	}
+	return nil
+}
+
+func validateCatalogEntry(a schema.AgentCatalogEntry) error {
+	if err := validateCatalogCommerce(a); err != nil {
+		return err
 	}
 	if !catalogID.MatchString(a.ID) {
 		return errors.New("助手 ID 仅支持小写字母、数字和连字符，最多 64 位")

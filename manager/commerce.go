@@ -46,7 +46,7 @@ func (m *Manager) registerCommerceRoutes(r *gin.Engine) {
 	user.POST("/billing/portal-sessions", m.createPortalSession)
 	admin := r.Group("/v1/admin", m.requireAdmin)
 	admin.GET("/stripe/settings", m.getStripeSettings)
-	admin.PUT("/stripe/settings", m.saveStripeSettings)
+	admin.PATCH("/stripe/products/:id", m.saveStripeProduct)
 	admin.GET("/invite-codes", m.listInviteCodes)
 	admin.POST("/invite-codes", m.generateInviteCodes)
 	admin.POST("/invite-codes/claim", m.claimInviteCodes)

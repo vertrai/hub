@@ -10,7 +10,7 @@
 
 - `/app`：普通用户 Google 登录、兑换、订阅、我的助手与账单。
 - `/admin/invite-codes`：邀请码生成、兑换用户和关联实例管理。
-- `/admin/stripe`：独立 Stripe 设置及订阅账单页面。
+- `/admin/stripe`：Agent 订阅价格及订阅账单页面。
 - 原 `/admin/login` 保留；身份验证与普通用户登录共用，后台仍逐次检查 `auth.google.allowedEmails`。
 - 普通 API 使用 Bearer JWT。登录响应 `{accessToken, tokenType, expiresIn, user}`；user 包含 userId/email/name/picture/roles。
 - User ID 使用 `google_<Google subject>`，与 agent-hub 一致；微信用户不按邮箱自动合并。
@@ -49,7 +49,7 @@
 
 1. 先执行 `./manager --config config.yaml migrate` 完成数据库迁移（失败时不要启动新版本；普通启动不再运行 AutoMigrate），配置 `auth.google`/`auth.jwt`。Google Client ID 必须匹配 vertr.ai 页面；Google Console 授权相应站点 origin。
 2. 在 `deployment` 填写网站与小程序共用的节点、签名私钥、Gateway URL、Hermes Gateway Token。后台“助手管理 → 运行与上架设置”配置模块、网站商品标识、Stripe 价格 ID 并上架；先用测试账号验证模块。
-3. 在 `/admin/stripe` 配置 Stripe 测试密钥、Webhook secret、success/cancel/portal URL；Checkout 成功页 URL 需包含 `{CHECKOUT_SESSION_ID}`。本地 website 有 checkout-success.html，但正式站点路径需部署时核对。
+3. 在 config.yaml 中配置 Stripe 测试密钥、Webhook secret、success/cancel/portal URL；Checkout 成功页 URL 需包含 `{CHECKOUT_SESSION_ID}`。本地 website 有 checkout-success.html，但正式站点路径需部署时核对。
 4. Stripe 配置事件：checkout.session.completed/expired、invoice.paid/payment_failed、customer.subscription.updated/deleted。先用测试订阅验证。
 5. 将 `window.VertrPlatformConfig.apiBase` 或 `window.VERTR_PLATFORM_API_BASE` 指向 Manager（或把原 platform-api 域名反代到 Manager）。客户端继续发送 Bearer，不需要跨域 Cookie。
 6. 旧 JWT 若签名/issuer/audience 不一致，用户重新登录。旧用户/邀请码/账单/实例 JSON 数据不能仅通过切换域名自动进入 PostgreSQL；现有付费订阅上线前必须做数据映射导入，尤其核实旧运行模块协议。本次功能实现不操作生产数据、不切换域名。
@@ -73,11 +73,11 @@
 - 不会自动把已有助手都变成网站商品。已有账单和实例保存的模块、价格与产品快照不变。
 - 无需修改 `stripe` 密钥、回调和网站 API 路径；之后新增商品或改价格不必编辑 YAML 或重启 Manager。
 
-## 后台 Stripe 设置与邀请码页面
+## 后台订阅价格与邀请码页面
 
-部署此版本前执行 `./manager --config config.yaml migrate`，新增 `manager_stripe_settings` 表。普通启动仍不会执行迁移。
+Stripe 全局配置（支付开关、两项密钥、跳转地址、支付策略）始终读取 config.yaml，修改后重启生效。旧版后台保存的 manager_stripe_settings 记录不再读取，也不会覆盖配置文件；已有表保留，不删除历史数据。
 
-Stripe 设置首次读取 YAML 默认值；在后台保存后，数据库设置优先，后续请求即时生效，多实例共享数据库可读取同一配置。密钥输入留空保留原值，输入新值进行替换；响应只返回是否已配置，数据库用 AES-GCM 加密配置。加密密钥由 Manager 持久化 JWT 签名私钥派生：部署时保留并备份该私钥，各实例必须使用同一把私钥；轮换前需用旧密钥解密迁移 Stripe 设置，不能直接替换后丢弃旧密钥。关闭支付仅关闭新 Checkout 和 Portal，已存在订阅的签名回调仍继续处理。
+`/admin/stripe` 按助手列出上架状态、网站商品标识和 Stripe Price ID。可首次绑定商品标识并修改价格，保存与助手目录使用同一条数据库记录。商品标识绑定后固定；Price ID 留空仅支持邀请码，调整价格不改写已有订单快照。实际金额、币种、周期在 Stripe 中创建并由 Price ID 对应。此前配置示例中的 prices.telegramCustomer / prices.xAgent 映射应分别填入对应助手，网站商品标识仍使用 telegram_customer_agent / x_agent。
 
 邀请码默认只需填写数量（默认 10）即可生成通用码，产品限制、到期时间、备注置于高级选项。表格展示关联 Agent、兑换用户姓名/邮箱、兑换时间，可复制单码或本批次所有码。概览统计全部记录，列表显示最近 1,000 条；实例列表可进入已有 Pod 管理页面查看资源，保留失败重试操作。订阅账单移至 Stripe 页面。
 
