@@ -3,6 +3,7 @@ package schema
 import "time"
 
 type InviteCode struct {
+	ClaimedAt *time.Time `json:"claimedAt,omitempty"`
 	Code      string     `gorm:"primaryKey;size:32" json:"code"`
 	Product   string     `gorm:"size:64" json:"product,omitempty"`
 	Note      string     `gorm:"size:500" json:"note,omitempty"`

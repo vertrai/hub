@@ -6,6 +6,7 @@ import (
 	"errors"
 	"math/big"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -48,6 +49,7 @@ func (m *Manager) registerCommerceRoutes(r *gin.Engine) {
 	admin.PUT("/stripe/settings", m.saveStripeSettings)
 	admin.GET("/invite-codes", m.listInviteCodes)
 	admin.POST("/invite-codes", m.generateInviteCodes)
+	admin.POST("/invite-codes/claim", m.claimInviteCodes)
 	admin.DELETE("/invite-codes/:code", m.revokeInviteCode)
 	admin.GET("/billing", m.adminBilling)
 	admin.GET("/web-agents", m.adminWebAgents)
@@ -395,4 +397,53 @@ func (m *Manager) commerceUsers(ids []string) (map[string]*schema.User, error) {
 		result[users[i].ID] = &users[i]
 	}
 	return result, nil
+}
+
+// Claim marks distribution, not redemption. A claimed code remains redeemable once.
+func (m *Manager) claimInviteCodes(c *gin.Context) {
+	if !m.catalogDB(c) {
+		return
+	}
+	var req struct {
+		Codes []string `json:"codes"`
+	}
+	if c.ShouldBindJSON(&req) != nil || len(req.Codes) < 1 || len(req.Codes) > 100 {
+		c.JSON(400, gin.H{"error": "select 1–100 invitation codes"})
+		return
+	}
+	seen := make(map[string]bool)
+	for i, code := range req.Codes {
+		code = strings.ToUpper(strings.TrimSpace(code))
+		if code == "" || seen[code] {
+			c.JSON(400, gin.H{"error": "empty or duplicate code"})
+			return
+		}
+		seen[code] = true
+		req.Codes[i] = code
+	}
+	sort.Strings(req.Codes)
+	unavailable := errors.New("one or more codes are already claimed, redeemed, revoked or expired; refresh the list")
+	err := m.wdb.Db.Transaction(func(tx *gorm.DB) error {
+		for _, code := range req.Codes {
+			now := time.Now()
+			result := tx.Model(&schema.InviteCode{}).Where("code = ? AND claimed_at IS NULL AND used_at IS NULL AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?)", code, now).Update("claimed_at", now)
+			if result.Error != nil {
+				return result.Error
+			}
+			if result.RowsAffected != 1 {
+				return unavailable
+			}
+		}
+		return nil
+	})
+	if errors.Is(err, unavailable) {
+		c.JSON(409, gin.H{"error": err.Error()})
+		return
+	}
+	if err != nil {
+		c.JSON(500, gin.H{"error": "cannot claim invitation codes"})
+		return
+	}
+	c.Header("Cache-Control", "no-store")
+	c.JSON(200, gin.H{"codes": req.Codes})
 }
