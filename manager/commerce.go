@@ -318,6 +318,23 @@ func (m *Manager) listWebAgents(c *gin.Context) {
 		c.JSON(500, gin.H{"error": "cannot list agents"})
 		return
 	}
+	podIDs := make([]string, 0, len(rows))
+	for _, a := range rows {
+		if a.PodID != "" {
+			podIDs = append(podIDs, a.PodID)
+		}
+	}
+	var channelPods []struct{ ID, WeixinBotID string }
+	if len(podIDs) > 0 {
+		if err := m.wdb.Db.Model(&schema.HymatrixPod{}).Select("id", "weixin_bot_id").Where("id IN ? AND user_id = ?", podIDs, mustWebUser(c)).Find(&channelPods).Error; err != nil {
+			c.JSON(500, gin.H{"error": "cannot load assistant channels"})
+			return
+		}
+	}
+	weixinByPod := make(map[string]bool, len(channelPods))
+	for _, pod := range channelPods {
+		weixinByPod[pod.ID] = pod.WeixinBotID != ""
+	}
 	bills := []schema.Billing{}
 	if err := m.wdb.Db.Where("user_id = ? AND agent_id <> ''", mustWebUser(c)).Find(&bills).Error; err != nil {
 		c.JSON(500, gin.H{"error": "cannot load agent billing"})
@@ -364,7 +381,7 @@ func (m *Manager) listWebAgents(c *gin.Context) {
 			}
 			connections = append(connections, gin.H{"type": "telegram", "url": url})
 		}
-		if a.ChannelConfigured && a.WeixinAuthorizedBotID != "" {
+		if weixinByPod[a.PodID] {
 			connections = append(connections, gin.H{"type": "weixin", "url": ""})
 		}
 		item["connections"] = connections

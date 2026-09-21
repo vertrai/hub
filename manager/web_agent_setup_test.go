@@ -84,3 +84,26 @@ func TestWebWeixinConfirmedAuthorization(t *testing.T) {
 		})
 	}
 }
+
+func TestWebAgentListsActualWeixinBinding(t *testing.T) {
+	m := newCommerceTestManager(t)
+	token := userToken(t, m, "bound-owner")
+	pod := schema.HymatrixPod{ID: "bound-pod", UserID: "google_bound-owner", PID: "bound-pid", WeixinBotID: "bound-bot"}
+	a := schema.WebAgent{ID: "bound-agent", UserID: pod.UserID, PodID: pod.ID, Source: "bound-test", State: "running", BotUsername: "test_bot", EnableTelegram: true, ChannelConfigured: true}
+	for _, row := range []any{&pod, &a} {
+		if err := m.wdb.Db.Create(row).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	r := webRequest(m, "GET", "/v1/agents", "", token)
+	if r.Code != 200 || !strings.Contains(r.Body.String(), `"type":"weixin"`) {
+		t.Fatal(r.Code, r.Body.String())
+	}
+	// An authorization alone is not an active channel binding.
+	m.wdb.Db.Model(&pod).Update("weixin_bot_id", "")
+	m.wdb.Db.Model(&a).Update("weixin_authorized_bot_id", "authorized-only")
+	r = webRequest(m, "GET", "/v1/agents", "", token)
+	if r.Code != 200 || strings.Contains(r.Body.String(), `"type":"weixin"`) {
+		t.Fatal(r.Code, r.Body.String())
+	}
+}
