@@ -62,7 +62,7 @@ func TestCommercePostgresConcurrentRedemptionAndEvents(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			_, err := m.reserveInviteAgent("CONCURRENT", fmt.Sprintf("user%d", i), "x_agent", schema.AgentCatalogEntry{ID: "x", Module: "module_x"})
+			_, err := m.reserveInviteAgent("CONCURRENT", fmt.Sprintf("user%d", i), "x_agent", schema.AgentCatalogEntry{ID: "x", Module: "module_x"}, false)
 			results <- err
 		}(i)
 	}

@@ -33,6 +33,12 @@ var loginHTML []byte
 //go:embed test.html
 var testHTML []byte
 
+//go:embed catalog_management.html
+var catalogManagementHTML []byte
+
+//go:embed catalog-management.js
+var catalogManagementJS []byte
+
 //go:embed agent_catalog.html
 var agentCatalogHTML []byte
 
@@ -112,7 +118,10 @@ func RegisterRoutes(routes *gin.Engine, authentication gin.HandlerFunc) {
 	routes.GET("/app.js", func(c *gin.Context) { c.Data(200, "application/javascript; charset=utf-8", appJS) })
 	protected.GET("/admin/llm/test", func(c *gin.Context) { renderAdminDocument(c, llmTestHTML) })
 	protected.GET("/admin/llm", func(c *gin.Context) { renderAdminDocument(c, llmHTML) })
-	protected.GET("/admin/agents", func(c *gin.Context) { renderAdminDocument(c, agentCatalogHTML) })
+	protected.GET("/admin/agents", func(c *gin.Context) { renderAdminDocument(c, catalogManagementHTML) })
+	protected.GET("/admin/agents/web", func(c *gin.Context) { renderAdminDocument(c, catalogManagementHTML) })
+	protected.GET("/admin/agents/wechat", func(c *gin.Context) { renderAdminDocument(c, agentCatalogHTML) })
+	protected.GET("/admin/assets/catalog-management.js", func(c *gin.Context) { c.Data(200, "text/javascript; charset=utf-8", catalogManagementJS) })
 	protected.GET("/admin/users", func(c *gin.Context) { renderAdminDocument(c, usersHTML) })
 	protected.GET("/admin/google", func(c *gin.Context) { renderAdminDocument(c, googleHTML) })
 	protected.GET("/admin/browser", func(c *gin.Context) { renderAdminDocument(c, browserHTML) })

@@ -6,6 +6,7 @@
     <title>助手管理</title>
     <link rel="stylesheet" href="/admin/assets/common.css" />
     <style>
+[hidden] { display: none !important; }
       .catalog-layout {
         align-items: start;
         display: grid;
@@ -185,7 +186,7 @@
       #form-title { margin:0;font-size:20px; }
       .catalog-form { gap:12px; }
       .catalog-form > .note { margin:0;font-size:13px; }
-      .editor-tabs { display:flex;gap:4px;border-bottom:1px solid #e2e8f0;padding:8px 0 0; }
+      .editor-tabs { display:flex;flex-wrap:wrap;gap:4px;border-bottom:1px solid #e2e8f0;padding:8px 0 0; }
       .editor-tabs button { border:0;border-bottom:2px solid transparent;border-radius:0;background:transparent;color:#6b7b91;box-shadow:none;padding:12px 16px;font-size:13px; }
       .editor-tabs button[aria-selected="true"] { color:#2467ff;border-bottom-color:#2467ff;background:#f6f9ff; }
       .preview-grid { display:contents; }
@@ -233,33 +234,34 @@
       <main class="content">
         <header class="page-head">
           <div>
-            <h1>助手管理</h1>
+            <h1>微信小程序展示</h1>
             <p class="note">
-              管理助手内容、展示效果与上架状态。
+              管理小程序专属文案、展示效果与上架状态。基础信息与运行模块在助手库维护。
             </p>
           </div>
         </header>
         <div class="catalog-layout">
           <section class="card assistant-library">
             <div class="actions">
-              <button id="new">新增助手</button
+              <button id="new" type="button">前往助手库</button
               ><button id="refresh" class="secondary">刷新列表</button>
             </div>
             <p id="list-status" role="status"></p>
             <div id="list"></div>
           </section>
           <section class="card">
-            <h2 id="form-title">新增助手</h2>
-            <form id="editor" class="catalog-form">
+            <h2 id="form-title">选择助手</h2>
+            <form id="editor" class="catalog-form" hidden>
               <p class="note">点击预览中的文字或图标直接编辑，保存后生效。</p>
               <input name="id" type="hidden" /><input name="logoUrl" type="hidden" />
               <input name="kicker" type="hidden" /><input name="loginCopy" type="hidden" />
               <input id="icon-file" type="file" accept="image/png,image/jpeg" hidden />
               <div class="editor-tabs" role="tablist" aria-label="编辑区域">
-                <button type="button" role="tab" data-tab="market" aria-selected="true">广场卡片</button>
-                <button type="button" role="tab" data-tab="detail" aria-selected="false">助手详情</button>
-                <button type="button" role="tab" data-tab="creation" aria-selected="false">创建过程</button>
-                <button type="button" role="tab" data-tab="settings" aria-selected="false">上架设置</button>
+                <button type="button" role="tab" data-tab="market" aria-selected="true">微信 · 广场卡片</button>
+                <button type="button" role="tab" data-tab="detail" aria-selected="false">微信 · 助手详情</button>
+                <button type="button" role="tab" data-tab="creation" aria-selected="false">微信 · 创建过程</button>
+                <button type="button" role="tab" data-tab="settings" aria-selected="false">小程序上架</button>
+
               </div>
               <div class="preview-grid">
                 <section class="preview-pane" data-pane="market" role="tabpanel">
@@ -322,22 +324,7 @@
                 </div>
               </section>
               <section class="settings-pane" data-pane="settings" role="tabpanel" hidden>
-              <h3>运行与上架设置</h3>
-              <p class="note" id="generated-id">助手 ID 将根据名称自动生成，保存后固定。</p>
-              <label
-                >Hymatrix 模块<input
-                  name="module"
-                  maxlength="512"
-                  placeholder="部署好的模块标识"
-              /></label>
-              <p class="note">
-                每个助手都需要设置已部署的模块。模块变更只用于之后创建的实例。
-              </p>
-              <h3>网站订阅与邀请码</h3>
-              <label>网站商品标识<input name="productId" maxlength="64" placeholder="例如 telegram_customer_agent 或 x_agent" /></label>
-              <p class="note">选填。填写后可在网站购买或兑换此助手。须与网站商品标识一致；首次保存后固定。留空则不作为网站商品。</p>
-              <label>Stripe 价格 ID<input name="stripePriceId" maxlength="255" placeholder="price_…" /></label>
-              <p class="note">在 Stripe 商品的价格详情中复制价格 ID，不是 prod_ 开头的商品 ID。留空时只开放邀请码。价格修改只用于新订单。</p>
+              <h3>微信小程序上架设置</h3>
               <div class="row">
                 <label
                   >排序（数字越小越靠前）<input
@@ -350,10 +337,9 @@
                   ><input
                     name="published"
                     type="checkbox"
-                  />在助手广场上架</label
+                  />在微信小程序上架</label
                 >
               </div>
-              <p class="note">下架后从助手广场隐藏，并停止网站新购买和兑换；不停止已有助手。小程序详情仍可直接访问。</p>
               </section>
               <div class="actions editor-savebar">
                 <button id="save" type="submit">保存助手</button
@@ -383,13 +369,11 @@
         "ctaLabel",
         "capabilityCopy",
         "creationDetail",
-        "module",
-        "productId",
-        "stripePriceId",
       ];
       const form = $("editor");
       function edit(a) {
         editorGeneration++;
+        form.hidden = !a;
         editing = a || null;
         document.querySelectorAll(".catalog-item").forEach(row => {
           const selected = row.dataset.agentId === editing?.id;
@@ -400,11 +384,11 @@
         for (const key of fields) form.elements[key].value = a?.[key] || "";
 
         form.elements.capabilities.value = (a?.capabilities || []).join("\n");
-        form.elements.productId.readOnly = !!a?.productId;
+
         form.elements.sortOrder.value = a?.sortOrder || 0;
         form.elements.published.checked = !!a?.published;
-        $("form-title").textContent = a ? "编辑 " + a.name : "新增助手";
-        $("delete").hidden = !a;
+        $("form-title").textContent = a ? "编辑小程序展示 · " + a.name : "选择助手";
+        $("delete").hidden = true;
         $("status").textContent = "";
         $("upload-status").textContent = "";
         renderCapabilities();
@@ -477,7 +461,6 @@
         form.querySelectorAll("textarea.inline-edit").forEach(el => { if (el.getClientRects().length) { el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; } });
         form.elements.summary.placeholder = form.elements.intro.value || "填写详情介绍；留空时使用列表介绍";
         form.elements.ctaLabel.placeholder = "创建" + name;
-        $("generated-id").textContent = editing ? "助手 ID：" + editing.id + "（修改名称不会改变 ID）" : "助手 ID 将根据名称自动生成，保存后固定。";
       }
       form.addEventListener("input", syncPreview);
       $("choose-icon").onclick = () => $("icon-file").click();
@@ -512,7 +495,7 @@
       };
       async function refresh() {
         try {
-          const data = await adminRequest("/v1/admin/agent-catalog");
+          const data = await adminRequest("/v1/admin/catalog-management/wechat");
           $("list").replaceChildren();
           for (const a of data.agents) {
             const row = document.createElement("div");
@@ -523,7 +506,7 @@
             const title = document.createElement("strong");
             title.textContent = a.name;
             const meta = document.createElement("small");
-            meta.textContent = `${a.published ? "已上架" : "已下架"} · 排序 ${a.sortOrder}`;
+            meta.textContent = `小程序：${a.published ? "已上架" : "已下架"}`;
             meta.title = a.id;
             copy.append(title, meta);
             const button = document.createElement("button");
@@ -536,12 +519,12 @@
             toggle.className = "assistant-publish";
             toggle.type = "button";
             toggle.setAttribute("aria-label", (a.published ? "下架" : "上架") + a.name);
-            toggle.textContent = a.published ? "下架" : "上架";
+            toggle.textContent = a.published ? "微信下架" : "微信上架";
             toggle.onclick = async () => {
               setBusy(toggle, true);
               try {
                 const result = await adminRequest(
-                  "/v1/admin/agent-catalog/" + encodeURIComponent(a.id),
+                  "/v1/admin/catalog-management/wechat/" + encodeURIComponent(a.id),
                   { method: "PUT", body: JSON.stringify({ ...a, published: !a.published }) },
                 );
                 if (editing?.id === a.id) {
@@ -585,12 +568,12 @@
         setBusy($("save"), true);
         try {
           const result = await adminRequest(
-            "/v1/admin/agent-catalog" +
+            "/v1/admin/catalog-management/wechat" +
               (editing ? "/" + encodeURIComponent(editing.id) : ""),
             { method: editing ? "PUT" : "POST", body: JSON.stringify(a) },
           );
           edit(result);
-          showStatus($("status"), "已保存。小程序下次加载目录时更新。", true);
+          showStatus($("status"), "已保存。对应入口下次加载目录时更新。", true);
           await refresh();
         } catch (e) {
           showStatus($("status"), e.message);
@@ -598,27 +581,7 @@
           setBusy($("save"), false);
         }
       };
-      $("delete").onclick = async () => {
-        if (
-          !editing ||
-          !confirm("删除此助手配置？已有创建记录的助手不可删除。")
-        )
-          return;
-        setBusy($("delete"), true);
-        try {
-          await adminRequest(
-            "/v1/admin/agent-catalog/" + encodeURIComponent(editing.id),
-            { method: "DELETE" },
-          );
-          edit(null);
-          await refresh();
-        } catch (e) {
-          showStatus($("status"), e.message);
-        } finally {
-          setBusy($("delete"), false);
-        }
-      };
-      $("new").onclick = () => edit(null);
+      $("new").onclick = () => { location.href = "/admin/agents"; };
       $("refresh").onclick = refresh;
       edit(null);
       refresh();

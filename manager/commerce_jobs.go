@@ -37,7 +37,7 @@ func (m *Manager) runCommerceJob(ctx context.Context) error {
 	var a schema.WebAgent
 	err := m.wdb.Db.Transaction(func(tx *gorm.DB) error {
 		err := tx.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).Where(`state = ? OR (state = ? AND desired = ?) OR (state = ? AND desired = ?) OR
- (state IN ('failed','needs_review') AND desired = 'stopped' AND EXISTS
+ (state IN ('failed','needs_review','awaiting_setup') AND desired = 'stopped' AND EXISTS
  (SELECT 1 FROM manager_hymatrix_pods p WHERE p.id = manager_web_agents.pod_id
  AND p.p_id <> '' AND p.p_id NOT LIKE 'pending_%' AND p.status <> 'stopped'))`, "queued", "running", "stopped", "stopped", "running").Order("created_at").First(&a).Error
 		if err != nil {
@@ -138,14 +138,6 @@ func (m *Manager) reconcileWebAgent(ctx context.Context, a *schema.WebAgent) err
 	if err := m.agentPhase(a, "resources"); err != nil {
 		return err
 	}
-	bot, err := m.resources.telegramBotDetails(ctx, key.Secret)
-	if err != nil {
-		return err
-	}
-	if err = m.wdb.Db.Model(a).Update("bot_username", bot.Username).Error; err != nil {
-		return err
-	}
-	a.BotUsername = bot.Username
 	resource, err := m.hermesLLMResource(ctx, key.Secret, "hub-chat")
 	if err != nil {
 		return err
@@ -155,7 +147,18 @@ func (m *Manager) reconcileWebAgent(ctx context.Context, a *schema.WebAgent) err
 		if err != nil {
 			return err
 		}
-		pod = schema.HymatrixPod{ID: commerceID("pod_"), UserID: a.UserID, Name: a.Product, RuntimeType: "hermes", PID: "pending_" + a.ID, Status: schema.PodStatusSpawned, NodeURL: cfg.NodeURL, AdminURL: cfg.AdminURL, PrivateKey: cfg.PrivateKey, Module: a.Module, Scheduler: info.Node.AccountID, AccessKeyID: key.ID, GatewayAPIKey: key.Secret, BotToken: bot.BotToken, LLMAPIKey: resource.APIKey, LLMBaseURL: resource.BaseURL, LLMModel: resource.Model, LLMProvider: resource.Provider}
+		var catalog schema.AgentCatalogEntry
+		name := a.Product
+		query := m.wdb.Db.Where("id = ?", a.CatalogID)
+		if a.CatalogID == "" {
+			query = m.wdb.Db.Where("product_id = ?", a.Product)
+		}
+		if err := query.First(&catalog).Error; err == nil {
+			name = catalog.Name
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		pod = schema.HymatrixPod{ID: commerceID("pod_"), UserID: a.UserID, Name: name, RuntimeType: "hermes", PID: "pending_" + a.ID, Status: schema.PodStatusSpawned, NodeURL: cfg.NodeURL, AdminURL: cfg.AdminURL, PrivateKey: cfg.PrivateKey, Module: a.Module, Scheduler: info.Node.AccountID, AccessKeyID: key.ID, GatewayAPIKey: key.Secret, LLMAPIKey: resource.APIKey, LLMBaseURL: resource.BaseURL, LLMModel: resource.Model, LLMProvider: resource.Provider}
 		if err = m.wdb.Db.Transaction(func(tx *gorm.DB) error {
 			if err := tx.Create(&pod).Error; err != nil {
 				return err
@@ -190,6 +193,31 @@ func (m *Manager) reconcileWebAgent(ctx context.Context, a *schema.WebAgent) err
 		}
 		pod.PID = pid
 	}
+	if !a.ChannelConfigured && a.Phase != "ready" {
+		if err := m.agentPhase(a, "awaiting_setup"); err != nil {
+			return err
+		}
+		return m.finishWebAgent(a, "awaiting_setup")
+	}
+	var weixin schema.WeixinBot
+	if pod.WeixinBotID != "" {
+		if err := m.wdb.Db.First(&weixin, "id = ? AND user_id = ? AND assigned_pod_id = ?", pod.WeixinBotID, a.UserID, pod.ID).Error; err != nil {
+			return err
+		}
+	}
+	if a.EnableTelegram && pod.BotToken == "" {
+		bot, err := m.resources.telegramBotDetails(ctx, key.Secret)
+		if err != nil {
+			return err
+		}
+		pod.BotToken = bot.BotToken
+		if err := m.wdb.Db.Model(&pod).Update("bot_token", bot.BotToken).Error; err != nil {
+			return err
+		}
+		if err := m.wdb.Db.Model(a).Update("bot_username", bot.Username).Error; err != nil {
+			return err
+		}
+	}
 	// A cancellation may arrive while provisioning. Check before starting; the
 	// next worker iteration applies any subsequent desired-state change.
 	var latest schema.WebAgent
@@ -203,7 +231,7 @@ func (m *Manager) reconcileWebAgent(ctx context.Context, a *schema.WebAgent) err
 	if err = m.agentPhase(a, "starting"); err != nil {
 		return err
 	}
-	if err = client.StartAgent(ctx, pod.PID, PodStartInput{GatewayURL: cfg.GatewayURL, GatewayAPIKey: key.Secret, BotToken: bot.BotToken, HermesGatewayToken: cfg.HermesGatewayToken}); err != nil {
+	if err = client.StartAgent(ctx, pod.PID, PodStartInput{GatewayURL: cfg.GatewayURL, GatewayAPIKey: key.Secret, BotToken: pod.BotToken, HermesGatewayToken: cfg.HermesGatewayToken, WeixinAccountID: weixin.AccountID, WeixinToken: weixin.Token, WeixinBaseURL: weixin.BaseURL, WeixinAllowedUsers: weixin.AllowedUserID}); err != nil {
 		return err
 	}
 	if err = m.wdb.Db.Model(&pod).Update("status", schema.PodStatusRunning).Error; err != nil {

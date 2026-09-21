@@ -366,7 +366,7 @@ func TestCommerceProvisionStopAndResumeKeepsPodAndKeys(t *testing.T) {
 	resources := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/v1/telegram-bot":
-			w.Write([]byte(`{"botToken":"bot-secret","username":"example_bot"}`))
+			w.Write([]byte(`{"telegramBot":{"botToken":"bot-secret","username":"example_bot"}}`))
 		case "/v1/access-key":
 			w.Write([]byte(`{"accessKey":{"id":"resource-key","ownerUserId":"google_one","status":"active"}}`))
 		default:
@@ -391,6 +391,27 @@ func TestCommerceProvisionStopAndResumeKeepsPodAndKeys(t *testing.T) {
 		if err := m.wdb.Db.Create(record).Error; err != nil {
 			t.Fatal(err)
 		}
+	}
+	if err := m.runCommerceJob(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	m.wdb.Db.First(&a, "id = ?", a.ID)
+	m.wdb.Db.First(&pod, "id = ?", pod.ID)
+	if a.State != "awaiting_setup" || pod.PID != "pid-new" || len(sdk.calls) != 1 {
+		t.Fatal("spawn must stop for user configuration", a.State, sdk.calls)
+	}
+	token := userToken(t, m, "one")
+	if r := webRequest(m, "POST", "/v1/agents/"+a.ID+"/start", `{"enableTelegram":true}`, token); r.Code != 409 {
+		t.Fatal("empty Telegram accepted")
+	}
+	if r := webRequest(m, "POST", "/v1/agents/"+a.ID+"/telegram", `{}`, token); r.Code != 200 {
+		t.Fatal(r.Code, r.Body.String())
+	}
+	if r := webRequest(m, "POST", "/v1/agents/"+a.ID+"/start", `{"enableTelegram":true}`, token); r.Code != 202 {
+		t.Fatal(r.Code, r.Body.String())
+	}
+	if r := webRequest(m, "POST", "/v1/agents/"+a.ID+"/start", `{"enableTelegram":true}`, token); r.Code != 409 {
+		t.Fatal("duplicate start accepted")
 	}
 	if err := m.runCommerceJob(context.Background()); err != nil {
 		t.Fatal(err)

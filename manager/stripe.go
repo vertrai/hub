@@ -48,8 +48,9 @@ func (s *stripeSDK) Subscription(ctx context.Context, id string) (*stripe.Subscr
 }
 func (m *Manager) createCheckoutSession(c *gin.Context) {
 	var req struct {
-		Product  string `json:"product"`
-		Quantity int64  `json:"quantity"`
+		Product         string `json:"product"`
+		Quantity        int64  `json:"quantity"`
+		ConsentAccepted bool   `json:"consentAccepted"`
 	}
 	if c.ShouldBindJSON(&req) != nil || req.Product == "" || (req.Quantity != 0 && req.Quantity != 1) {
 		c.JSON(400, gin.H{"error": "product and one agent seat are required"})
@@ -65,8 +66,12 @@ func (m *Manager) createCheckoutSession(c *gin.Context) {
 		return
 	}
 	entry, err := m.commerceProduct(req.Product)
-	if err != nil || entry.StripePriceID == "" {
+	if err != nil || !webSubscriptionRequired(entry) || entry.StripePriceID == "" {
 		c.JSON(503, gin.H{"error": "subscription product is unavailable"})
+		return
+	}
+	if entry.Web != nil && webRequiresConsent(entry) && !req.ConsentAccepted {
+		c.JSON(400, gin.H{"error": "consent required"})
 		return
 	}
 	// Reserve and COMMIT the idempotency key before calling Stripe. A lost
@@ -84,10 +89,10 @@ func (m *Manager) createCheckoutSession(c *gin.Context) {
 		if !errors.Is(e, gorm.ErrRecordNotFound) {
 			return e
 		}
-		if e := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&entry, "id = ? AND product_id = ? AND published = ?", entry.ID, req.Product, true).Error; e != nil {
+		if e := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&entry, "id = ? AND product_id = ?", entry.ID, req.Product).Error; e != nil {
 			return e
 		}
-		if entry.Module == "" || entry.StripePriceID == "" {
+		if !webSubscriptionRequired(entry) || entry.Module == "" || entry.StripePriceID == "" || !commercePublished(entry) || (entry.Web != nil && webRequiresConsent(entry) && !req.ConsentAccepted) {
 			return errors.New("subscription product is unavailable")
 		}
 		record = schema.Billing{ID: commerceID("bill_"), UserID: user.ID, Product: req.Product, CatalogID: entry.ID, Module: entry.Module, PriceID: entry.StripePriceID, Status: "checkout_pending"}
@@ -105,6 +110,14 @@ func (m *Manager) createCheckoutSession(c *gin.Context) {
 		var user schema.User
 		if e := tx.First(&user, "id = ?", record.UserID).Error; e != nil {
 			return e
+		}
+		// Recheck web publication even when reusing a pending checkout.
+		var current schema.AgentCatalogEntry
+		if e := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&current, "id = ?", record.CatalogID).Error; e != nil {
+			return e
+		}
+		if !webSubscriptionRequired(current) || !commercePublished(current) || current.Module == "" || current.StripePriceID == "" || (current.Web != nil && webRequiresConsent(current) && !req.ConsentAccepted) {
+			return errors.New("subscription product is unavailable")
 		}
 		var e error
 		if record.CheckoutSessionID != nil && record.CheckoutURL != "" {

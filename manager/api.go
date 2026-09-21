@@ -22,6 +22,8 @@ func (m *Manager) router() *gin.Engine {
 	r := gin.New()
 	r.Use(common.RequestLogger(log), gin.Recovery(), common.CORSMiddleware())
 	r.GET("/info", m.info)
+	r.GET("/v1/catalog", m.listWebCatalog)
+	r.GET("/v1/catalog/:id", m.getWebCatalogEntry)
 	r.GET("/v1/wechat/catalog-images/:id", m.getAgentCatalogImage)
 	r.DELETE("/v1/wechat/agents/:taskId", m.deleteFailedMiniProgramAgent)
 	r.GET("/v1/wechat/catalog", m.listAgentCatalog)
@@ -44,6 +46,9 @@ func (m *Manager) router() *gin.Engine {
 	r.POST("/v1/admin/logout", m.adminLogout)
 	admin := r.Group("/v1/admin", m.requireAdmin)
 	admin.GET("/agent-catalog", m.adminAgentCatalog)
+	admin.GET("/catalog-management/:scope", m.adminScopedCatalog)
+	admin.POST("/catalog-management/core", m.adminCreateCatalogCore)
+	admin.PUT("/catalog-management/:scope/:id", m.adminSaveScopedCatalog)
 	admin.POST("/agent-catalog-images", m.uploadAgentCatalogImage)
 	admin.POST("/agent-catalog", m.adminSaveAgentCatalog)
 	admin.PUT("/agent-catalog/:id", m.adminSaveAgentCatalog)
@@ -703,6 +708,10 @@ func (m *Manager) listPods(c *gin.Context) {
 	}
 	if err := m.wdb.Db.Order("created_at desc").Find(&pods).Error; err != nil {
 		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+	if err := m.resolveWebPodNames(pods); err != nil {
+		c.JSON(500, gin.H{"error": "cannot load assistant names"})
 		return
 	}
 	c.JSON(200, gin.H{"items": pods})

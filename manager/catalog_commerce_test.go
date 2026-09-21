@@ -115,7 +115,7 @@ func TestCatalogCommerceRedemptionRechecksCatalog(t *testing.T) {
 		t.Fatal(err)
 	}
 	entry.Module = "stale_module"
-	agent, err := m.reserveInviteAgent("ABCDEF", "buyer", "x_agent", entry)
+	agent, err := m.reserveInviteAgent("ABCDEF", "buyer", "x_agent", entry, false)
 	if err != nil || agent.Module != "updated_module" {
 		t.Fatalf("redemption used stale catalog: %+v, %v", agent, err)
 	}
@@ -125,7 +125,7 @@ func TestCatalogCommerceRedemptionRechecksCatalog(t *testing.T) {
 	if err := m.wdb.Db.Model(&entry).Update("published", false).Error; err != nil {
 		t.Fatal(err)
 	}
-	if _, err := m.reserveInviteAgent("GHJKLM", "buyer", "x_agent", entry); err == nil {
+	if _, err := m.reserveInviteAgent("GHJKLM", "buyer", "x_agent", entry, false); err == nil {
 		t.Fatal("redeemed unpublished product from stale catalog")
 	}
 	var invite schema.InviteCode

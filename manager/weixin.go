@@ -31,6 +31,7 @@ type WeixinCredentials struct {
 }
 
 type weixinAttempt struct {
+	WebAgentID                                      string
 	MiniProgramTaskID                               string
 	Submitting                                      bool
 	ID, UserID, PollSecret, QRContent, ProviderBase string

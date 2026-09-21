@@ -38,6 +38,11 @@ func (m *Manager) registerCommerceRoutes(r *gin.Engine) {
 		p := product
 		user.POST("/agents/"+path, func(c *gin.Context) { m.redeemInvite(c, p) })
 	}
+	user.POST("/agents/:id/telegram", m.acquireWebTelegram)
+	user.POST("/agents/:id/start", m.configureWebAgent)
+	user.POST("/agents/:id/weixin", m.startWebWeixin)
+	user.GET("/agents/:id/weixin/:attempt", m.pollWebWeixin)
+	user.POST("/agents/free", m.createFreeAgent)
 	user.POST("/invite-codes/redeem", func(c *gin.Context) { m.redeemInvite(c, "") })
 	user.GET("/invite-codes/me", m.myInviteCodes)
 	user.GET("/billing", m.listBilling)
@@ -60,7 +65,7 @@ func (m *Manager) commerceProduct(product string) (schema.AgentCatalogEntry, err
 	if strings.TrimSpace(product) == "" {
 		return entry, errors.New("product is required")
 	}
-	if err := m.wdb.Db.First(&entry, "product_id = ? AND published = ?", product, true).Error; err != nil || entry.Module == "" {
+	if err := m.wdb.Db.First(&entry, "product_id = ?", product).Error; err != nil || entry.Module == "" || !commercePublished(entry) {
 		return entry, errors.New("product is not available")
 	}
 	if err := validateDeploymentConfig(m.config.Deployment); err != nil {
@@ -75,7 +80,7 @@ func (m *Manager) listCommerceProducts(c *gin.Context) {
 		return
 	}
 	var entries []schema.AgentCatalogEntry
-	if err := m.wdb.Db.Where("product_id <> '' AND published = ?", true).Order("sort_order, id").Find(&entries).Error; err != nil {
+	if err := m.wdb.Db.Where("product_id <> ''").Order("sort_order, id").Find(&entries).Error; err != nil {
 		c.JSON(500, gin.H{"error": "cannot list products"})
 		return
 	}
@@ -85,7 +90,10 @@ func (m *Manager) listCommerceProducts(c *gin.Context) {
 		return
 	}
 	for _, entry := range entries {
-		items = append(items, gin.H{"product": entry.ProductID, "name": entry.Name, "catalogId": entry.ID, "subscriptionAvailable": cfg.Enabled && entry.StripePriceID != ""})
+		if !commercePublished(entry) {
+			continue
+		}
+		items = append(items, gin.H{"product": entry.ProductID, "name": entry.Name, "catalogId": entry.ID, "subscriptionAvailable": webSubscriptionRequired(entry) && cfg.Enabled && entry.StripePriceID != ""})
 	}
 	c.JSON(200, gin.H{"items": items})
 }
@@ -225,8 +233,9 @@ var errInviteUnavailable = errors.New("invitation code is invalid, expired or al
 
 func (m *Manager) redeemInvite(c *gin.Context, product string) {
 	var req struct {
-		InviteCode string `json:"inviteCode"`
-		Product    string `json:"product"`
+		InviteCode      string `json:"inviteCode"`
+		Product         string `json:"product"`
+		ConsentAccepted bool   `json:"consentAccepted"`
 	}
 	if c.ShouldBindJSON(&req) != nil || strings.TrimSpace(req.InviteCode) == "" {
 		c.JSON(400, gin.H{"error": "inviteCode is required"})
@@ -240,7 +249,11 @@ func (m *Manager) redeemInvite(c *gin.Context, product string) {
 		c.JSON(503, gin.H{"error": err.Error()})
 		return
 	}
-	agent, err := m.reserveInviteAgent(strings.ToUpper(strings.TrimSpace(req.InviteCode)), mustWebUser(c), product, entry)
+	if entry.Web != nil && (!entry.Web.InviteEnabled || (webRequiresConsent(entry) && !req.ConsentAccepted)) {
+		c.JSON(400, gin.H{"error": "invitation unavailable or consent required"})
+		return
+	}
+	agent, err := m.reserveInviteAgent(strings.ToUpper(strings.TrimSpace(req.InviteCode)), mustWebUser(c), product, entry, req.ConsentAccepted)
 	if errors.Is(err, errInviteUnavailable) {
 		c.JSON(403, gin.H{"error": err.Error()})
 		return
@@ -251,13 +264,13 @@ func (m *Manager) redeemInvite(c *gin.Context, product string) {
 	}
 	c.JSON(200, gin.H{"agent": webAgentResponse(agent)})
 }
-func (m *Manager) reserveInviteAgent(code, user, product string, entry schema.AgentCatalogEntry) (schema.WebAgent, error) {
+func (m *Manager) reserveInviteAgent(code, user, product string, entry schema.AgentCatalogEntry, consentAccepted bool) (schema.WebAgent, error) {
 	var a schema.WebAgent
 	err := m.wdb.Db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&entry, "id = ? AND product_id = ? AND published = ?", entry.ID, product, true).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&entry, "id = ? AND product_id = ?", entry.ID, product).Error; err != nil {
 			return err
 		}
-		if entry.Module == "" {
+		if entry.Module == "" || !commercePublished(entry) || (entry.Web != nil && (!entry.Web.InviteEnabled || (webRequiresConsent(entry) && !consentAccepted))) {
 			return errors.New("product is not available")
 		}
 		var invite schema.InviteCode
@@ -297,7 +310,7 @@ func webAgentResponse(a schema.WebAgent) gin.H {
 	case "needs_review":
 		status = "failed"
 	}
-	return gin.H{"agentId": a.ID, "product": a.Product, "status": status, "inviteCode": a.InviteCode, "botUsername": a.BotUsername, "telegramBotUrl": telegramBotLink(a.BotUsername), "telegramUrl": telegramBotLink(a.BotUsername), "createdAt": a.CreatedAt}
+	return gin.H{"agentId": a.ID, "product": a.Product, "status": status, "phase": a.Phase, "inviteCode": a.InviteCode, "botUsername": a.BotUsername, "telegramBotUrl": telegramBotLink(a.BotUsername), "telegramUrl": telegramBotLink(a.BotUsername), "createdAt": a.CreatedAt}
 }
 func (m *Manager) listWebAgents(c *gin.Context) {
 	rows := []schema.WebAgent{}
@@ -314,9 +327,47 @@ func (m *Manager) listWebAgents(c *gin.Context) {
 	for _, b := range bills {
 		byAgent[b.AgentID] = b
 	}
+	var catalog []schema.AgentCatalogEntry
+	if err := m.wdb.Db.Find(&catalog).Error; err != nil {
+		c.JSON(500, gin.H{"error": "cannot load agent details"})
+		return
+	}
+	byCatalog := map[string]schema.AgentCatalogEntry{}
+	byProduct := map[string]schema.AgentCatalogEntry{}
+	for _, entry := range catalog {
+		byCatalog[entry.ID] = entry
+		byProduct[entry.ProductID] = entry
+	}
 	items := []gin.H{}
 	for _, a := range rows {
 		item := webAgentResponse(a)
+		entry, ok := byCatalog[a.CatalogID]
+		if !ok {
+			entry, ok = byProduct[a.Product]
+		}
+		if ok {
+			item["catalogId"] = entry.ID
+			item["agent"] = m.webCatalogEntry(entry, webLocale(c))
+		}
+		item["connection"] = gin.H{"type": "telegram", "url": ""}
+		if a.ChannelConfigured && !a.EnableTelegram {
+			item["connection"] = gin.H{"type": "weixin", "url": ""}
+		}
+		if a.State == "running" && (!a.ChannelConfigured || a.EnableTelegram) {
+			item["connection"] = gin.H{"type": "telegram", "url": telegramBotLink(a.BotUsername)}
+		}
+		connections := []gin.H{}
+		if a.EnableTelegram || (!a.ChannelConfigured && a.BotUsername != "") {
+			url := ""
+			if a.State == "running" {
+				url = telegramBotLink(a.BotUsername)
+			}
+			connections = append(connections, gin.H{"type": "telegram", "url": url})
+		}
+		if a.ChannelConfigured && a.WeixinAuthorizedBotID != "" {
+			connections = append(connections, gin.H{"type": "weixin", "url": ""})
+		}
+		item["connections"] = connections
 		if b, ok := byAgent[a.ID]; ok {
 			item["billing"] = b
 			item["currentPeriodStart"] = b.CurrentPeriodStart
@@ -446,4 +497,50 @@ func (m *Manager) claimInviteCodes(c *gin.Context) {
 	}
 	c.Header("Cache-Control", "no-store")
 	c.JSON(200, gin.H{"codes": req.Codes})
+}
+
+// Serialize free creation on the catalog row and reuse the user's existing free
+// instance. Retries and concurrent clicks must not allocate extra runtimes.
+func (m *Manager) createFreeAgent(c *gin.Context) {
+	var req struct {
+		Product         string `json:"product"`
+		ConsentAccepted bool   `json:"consentAccepted"`
+	}
+	if c.ShouldBindJSON(&req) != nil || !req.ConsentAccepted {
+		c.JSON(400, gin.H{"error": "consent required"})
+		return
+	}
+	entry, err := m.commerceProduct(req.Product)
+	if err != nil {
+		c.JSON(409, gin.H{"error": "product unavailable"})
+		return
+	}
+	var agent schema.WebAgent
+	denied := errors.New("free creation unavailable")
+	err = m.wdb.Db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&entry, "id = ?", entry.ID).Error; err != nil {
+			return err
+		}
+		if !commercePublished(entry) || !webFreeEnabled(entry) || entry.Module == "" {
+			return denied
+		}
+		err := tx.Where("user_id = ? AND catalog_id = ? AND source IN ?", mustWebUser(c), entry.ID, []string{"free", "free:" + mustWebUser(c) + ":" + entry.ID}).First(&agent).Error
+		if err == nil {
+			return nil
+		}
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		agent = schema.WebAgent{ID: commerceID("agent_"), UserID: mustWebUser(c), Product: entry.ProductID, CatalogID: entry.ID, Module: entry.Module, Source: "free:" + mustWebUser(c) + ":" + entry.ID, State: "queued", Desired: "running"}
+		return tx.Create(&agent).Error
+	})
+	if errors.Is(err, denied) {
+		c.JSON(403, gin.H{"error": err.Error()})
+		return
+	}
+	if err != nil {
+		c.JSON(500, gin.H{"error": "cannot create agent"})
+		return
+	}
+	c.JSON(200, gin.H{"agent": webAgentResponse(agent)})
 }

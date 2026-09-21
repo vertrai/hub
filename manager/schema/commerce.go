@@ -20,23 +20,26 @@ func (InviteCode) TableName() string { return "manager_invite_codes" }
 // WebAgent is the durable commercial instance, separate from its current Pod.
 // Desire changes with subscription entitlement; State tracks actual deployment.
 type WebAgent struct {
-	ID          string     `gorm:"primaryKey;size:80" json:"agentId"`
-	UserID      string     `gorm:"size:255;index" json:"-"`
-	Product     string     `gorm:"size:64" json:"product"`
-	CatalogID   string     `gorm:"size:64" json:"-"`
-	Module      string     `json:"-"`
-	Source      string     `gorm:"size:160;uniqueIndex" json:"-"`
-	InviteCode  string     `json:"inviteCode,omitempty"`
-	PodID       string     `gorm:"size:80" json:"-"`
-	AccessKeyID string     `gorm:"size:80" json:"-"`
-	BotUsername string     `json:"botUsername,omitempty"`
-	State       string     `gorm:"size:32;index" json:"status"`
-	Desired     string     `gorm:"size:32;index" json:"-"`
-	Phase       string     `gorm:"size:32" json:"-"`
-	Error       string     `json:"-"`
-	LeaseUntil  *time.Time `json:"-"`
-	CreatedAt   time.Time  `json:"createdAt"`
-	UpdatedAt   time.Time  `json:"updatedAt"`
+	WeixinAuthorizedBotID string     `json:"-"`
+	ChannelConfigured     bool       `json:"-"`
+	EnableTelegram        bool       `json:"-"`
+	ID                    string     `gorm:"primaryKey;size:80" json:"agentId"`
+	UserID                string     `gorm:"size:255;index" json:"-"`
+	Product               string     `gorm:"size:64" json:"product"`
+	CatalogID             string     `gorm:"size:64" json:"-"`
+	Module                string     `json:"-"`
+	Source                string     `gorm:"size:160;uniqueIndex" json:"-"`
+	InviteCode            string     `json:"inviteCode,omitempty"`
+	PodID                 string     `gorm:"size:80" json:"-"`
+	AccessKeyID           string     `gorm:"size:80" json:"-"`
+	BotUsername           string     `json:"botUsername,omitempty"`
+	State                 string     `gorm:"size:32;index" json:"status"`
+	Desired               string     `gorm:"size:32;index" json:"-"`
+	Phase                 string     `gorm:"size:32" json:"-"`
+	Error                 string     `json:"-"`
+	LeaseUntil            *time.Time `json:"-"`
+	CreatedAt             time.Time  `json:"createdAt"`
+	UpdatedAt             time.Time  `json:"updatedAt"`
 }
 
 func (WebAgent) TableName() string { return "manager_web_agents" }
