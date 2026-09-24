@@ -51,6 +51,9 @@ var googleHTML []byte
 //go:embed browser.html
 var browserHTML []byte
 
+//go:embed netease_account.html
+var neteaseAccountHTML []byte
+
 //go:embed xbox_child.html
 var xboxChildHTML []byte
 
@@ -125,6 +128,7 @@ func RegisterRoutes(routes *gin.Engine, authentication gin.HandlerFunc) {
 	protected.GET("/admin/users", func(c *gin.Context) { renderAdminDocument(c, usersHTML) })
 	protected.GET("/admin/google", func(c *gin.Context) { renderAdminDocument(c, googleHTML) })
 	protected.GET("/admin/browser", func(c *gin.Context) { renderAdminDocument(c, browserHTML) })
+	protected.GET("/admin/netease-accounts", func(c *gin.Context) { renderAdminDocument(c, neteaseAccountHTML) })
 	protected.GET("/admin/xbox-child", func(c *gin.Context) { renderAdminDocument(c, xboxChildHTML) })
 	protected.GET("/admin/xbot", func(c *gin.Context) { renderAdminDocument(c, xbotHTML) })
 	protected.GET("/admin/telegram", func(c *gin.Context) { renderAdminDocument(c, telegramHTML) })

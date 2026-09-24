@@ -38,8 +38,8 @@ func (w *Wdb) Migrate() error {
 	}
 	log.Info("manager startup stage completed", "stage", "legacy_table_check", "elapsed", time.Since(stage))
 	stage = time.Now()
-	log.Info("manager startup stage started", "stage", "auto_migrate", "models", 17)
-	if err := w.Db.AutoMigrate(&schema.StripeSettings{}, &schema.InviteCode{}, &schema.WebAgent{}, &schema.Billing{}, &schema.StripeEvent{}, &schema.XboxChild{}, &schema.LLMRoute{}, &schema.LLMResourceSettings{}, &schema.LLMProvider{}, &schema.LLMKey{}, &schema.User{}, &schema.AccessKey{}, &schema.HymatrixPod{}, &schema.WeixinBot{}, &schema.MiniProgramAgentTask{}, &schema.AgentCatalogEntry{}, &schema.AgentCatalogImage{}); err != nil {
+	log.Info("manager startup stage started", "stage", "auto_migrate", "models", 18)
+	if err := w.Db.AutoMigrate(&schema.StripeSettings{}, &schema.InviteCode{}, &schema.WebAgent{}, &schema.Billing{}, &schema.StripeEvent{}, &schema.XboxChild{}, &schema.NetEaseAccount{}, &schema.LLMRoute{}, &schema.LLMResourceSettings{}, &schema.LLMProvider{}, &schema.LLMKey{}, &schema.User{}, &schema.AccessKey{}, &schema.HymatrixPod{}, &schema.WeixinBot{}, &schema.MiniProgramAgentTask{}, &schema.AgentCatalogEntry{}, &schema.AgentCatalogImage{}); err != nil {
 		return fmt.Errorf("migrate postgres: %w", err)
 	}
 	log.Info("manager startup stage completed", "stage", "auto_migrate", "elapsed", time.Since(stage))

@@ -14,6 +14,7 @@ require (
 	github.com/inconshreveable/log15 v2.16.0+incompatible
 	github.com/permadao/goar v1.1.1
 	github.com/spf13/viper v1.21.0
+	github.com/stripe/stripe-go/v86 v86.1.0
 	github.com/urfave/cli/v2 v2.27.4
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/gorm v1.31.1
@@ -67,7 +68,6 @@ require (
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/segmentio/asm v1.2.1 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
-	github.com/stripe/stripe-go/v86 v86.1.0 // indirect
 	github.com/supranational/blst v0.3.13 // indirect
 	github.com/tidwall/gjson v1.18.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect

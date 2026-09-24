@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>网易游戏账户资源池</title><link rel="stylesheet" href="/admin/assets/common.css"></head>
+<body>
+<div class="shell">
+<aside class="side"><div class="brand"><span>AGENT RUNTIME CONTROL</span><b>Agent Runtime Hub</b></div><!-- admin-navigation --></aside>
+<main class="content">
+<header class="page-head"><div><div class="eyebrow">网易游戏账户</div><h1>网易游戏账户资源池</h1><p>手动录入网易游戏账户。首次领取后标记为已使用，同一个 Hub API Key 重复请求返回原账户。</p></div></header>
+<section class="grid">
+<article class="card"><h2>录入账户</h2><form id="create" autocomplete="off">
+<label>网易登录账号<input id="username" type="text" maxlength="254" required autocomplete="off"></label>
+<label>密码<input id="password" type="password" required autocomplete="off" placeholder="手动填写已有账户密码" data-1p-ignore data-lpignore="true"></label>
+<button id="save" type="submit">保存账户</button><p id="message" role="status"></p>
+</form></article>
+<article class="card wide"><div class="page-head"><div><h2>账户列表</h2><p id="counts"></p></div><button id="refresh" class="secondary">刷新</button></div><div id="items" class="table-wrap"></div></article>
+</section>
+</main></div>
+<dialog id="editDialog"><form id="editForm" autocomplete="off">
+<h2>修改密码</h2><p id="editUsername"></p><input id="editId" type="hidden">
+<label>密码<input id="editPassword" type="password" required autocomplete="off" placeholder="手动填写已有账户密码" data-1p-ignore data-lpignore="true"></label>
+<p>仅更新 Hub 中保存的密码，不会修改网易网站的密码。</p>
+<p id="editMessage" role="status"></p><button id="editSave" type="submit">保存密码</button>
+<button id="editCancel" type="button" class="secondary">取消</button>
+</form></dialog>
+<script src="/admin/assets/common.js"></script>
+<script>
+async function loadAccounts(){
+ setBusy($("refresh"),true,"加载中…");
+ try {
+  const {items=[]}=await adminRequest("/v1/admin/netease/accounts");
+  $("counts").textContent=`共 ${items.length} 个 · 未使用 ${items.filter(x=>!x.hubAccessKeyId).length} 个 · 已使用 ${items.filter(x=>x.hubAccessKeyId).length} 个`;
+  $("items").innerHTML=`<table><thead><tr><th>网易登录账号</th><th>密码</th><th>状态</th><th>绑定 Hub Key ID</th><th>领取时间</th><th>操作</th></tr></thead><tbody>${items.map(x=>`<tr><td>${esc(x.username)}</td><td style="white-space:pre-wrap">${esc(x.password)}</td><td>${x.hubAccessKeyId?"已使用":"未使用"}</td><td>${esc(x.hubAccessKeyId||"—")}</td><td>${esc(x.usedAt?new Date(x.usedAt).toLocaleString():"—")}</td><td><button class="secondary" data-edit="${esc(x.id)}">修改密码</button> <button class="secondary" data-delete="${esc(x.id)}">删除账户</button></td></tr>`).join("")||'<tr><td colspan="6" class="empty">暂无账户，请先录入。</td></tr>'}</tbody></table>`;
+  $("items").querySelectorAll("[data-edit]").forEach(button=>button.onclick=()=>{
+   $("editId").value=button.dataset.edit;
+   $("editUsername").textContent=items.find(x=>x.id===button.dataset.edit).username;
+   $("editPassword").value="";$("editMessage").textContent="";$("editDialog").showModal();
+  });
+  $("items").querySelectorAll("[data-delete]").forEach(button=>button.onclick=async()=>{
+   const item=items.find(x=>x.id===button.dataset.delete);
+   if(!confirm(`确定删除账户 ${item.username}？删除后无法恢复。${item.hubAccessKeyId?"已绑定的 Hub Key 再次请求时将尝试领取其他可用账户。":""}`))return;
+   setBusy(button,true,"删除中…");
+   try{await adminRequest("/v1/admin/netease/accounts/"+encodeURIComponent(item.id),{method:"DELETE"});await loadAccounts()}
+   catch(error){alert(error.message)}
+   finally{setBusy(button,false)}
+  });
+ }catch(error){$("items").innerHTML=`<p class="error">${esc(error.message)}</p>`}
+ finally{setBusy($("refresh"),false)}
+}
+$("create").onsubmit=async(event)=>{
+ event.preventDefault();setBusy($("save"),true,"保存中…");$("message").textContent="";
+ try{
+  await adminRequest("/v1/admin/netease/accounts",{method:"POST",body:JSON.stringify({username:$("username").value.trim(),password:$("password").value})});
+  $("create").reset();$("message").textContent="账户已保存";await loadAccounts();
+ }catch(error){$("message").textContent=error.message}
+ finally{setBusy($("save"),false)}
+};
+$("editCancel").onclick=()=>$("editDialog").close();
+$("editForm").onsubmit=async(event)=>{
+ event.preventDefault();setBusy($("editSave"),true,"保存中…");$("editMessage").textContent="";
+ try{
+  await adminRequest("/v1/admin/netease/accounts/"+encodeURIComponent($("editId").value),{method:"PATCH",body:JSON.stringify({password:$("editPassword").value})});
+  $("editDialog").close();$("editPassword").value="";await loadAccounts();
+ }catch(error){$("editMessage").textContent=error.message}
+ finally{setBusy($("editSave"),false)}
+};
+$("refresh").onclick=loadAccounts;loadAccounts();
+</script>
+</body></html>

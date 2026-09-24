@@ -12,7 +12,7 @@ import (
 )
 
 func TestAdminNavigationIsStableAcrossPages(t *testing.T) {
-	paths := []string{"/admin", "/admin/agents", "/admin/agents/wechat", "/admin/agents/web", "/admin/invite-codes", "/admin/stripe", "/admin/users", "/admin/hymatrix", "/admin/llm", "/admin/google", "/admin/browser", "/admin/xbox-child", "/admin/xbot", "/admin/telegram", "/admin/llm/test", "/admin/hymatrix/eval", "/admin/weixin", "/admin/test", "/admin/hymatrix/weixin-reset"}
+	paths := []string{"/admin", "/admin/agents", "/admin/agents/wechat", "/admin/agents/web", "/admin/invite-codes", "/admin/stripe", "/admin/users", "/admin/hymatrix", "/admin/llm", "/admin/google", "/admin/browser", "/admin/netease-accounts", "/admin/xbox-child", "/admin/xbot", "/admin/telegram", "/admin/llm/test", "/admin/hymatrix/eval", "/admin/weixin", "/admin/test", "/admin/hymatrix/weixin-reset"}
 	r := gin.New()
 	RegisterRoutes(r, allowAll)
 	var baseline []string
