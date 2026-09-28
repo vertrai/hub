@@ -86,7 +86,7 @@ func TestAdminPagesShareRuntimeHubBrandAndNavigation(t *testing.T) {
 		recorder := httptest.NewRecorder()
 		router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, path, nil))
 		body := recorder.Body.String()
-		for _, expected := range []string{"AGENT RUNTIME CONTROL", "Agent Runtime Hub", `href="/admin/browser"`, `href="/admin/xbot"`, `href="/admin/weixin"`, `href="/admin/test"`} {
+		for _, expected := range []string{"AGENT RUNTIME CONTROL", "Agent Runtime Hub", `href="/admin/browser"`, `aria-disabled="true"`, "Xbox Bot 资源池（暂不可用）", `href="/admin/xbox-child"`, `href="/admin/weixin"`, `href="/admin/test"`} {
 			if !strings.Contains(body, expected) {
 				t.Errorf("GET %s is missing shared navigation content %q", path, expected)
 			}

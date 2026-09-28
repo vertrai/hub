@@ -24,7 +24,7 @@ func TestNetEaseAccountPageRequiresAuthentication(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatal(response.Code)
 	}
-	for _, content := range []string{"网易游戏账户资源池", `id="username"`, `type="password"`, "/v1/admin/netease/accounts", `method:"PATCH"`, `method:"DELETE"`} {
+	for _, content := range []string{"网易游戏账户资源池", `id="username"`, `id="password" type="text"`, `id="editPassword" type="text"`, "/v1/admin/netease/accounts", `method:"PATCH"`, `method:"DELETE"`} {
 		if !strings.Contains(response.Body.String(), content) {
 			t.Fatalf("missing administration control %s", content)
 		}

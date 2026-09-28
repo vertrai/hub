@@ -15,6 +15,12 @@ func TestAdminNavigationIsStableAcrossPages(t *testing.T) {
 	paths := []string{"/admin", "/admin/agents", "/admin/agents/wechat", "/admin/agents/web", "/admin/invite-codes", "/admin/stripe", "/admin/users", "/admin/hymatrix", "/admin/llm", "/admin/google", "/admin/browser", "/admin/netease-accounts", "/admin/xbox-child", "/admin/xbot", "/admin/telegram", "/admin/llm/test", "/admin/hymatrix/eval", "/admin/weixin", "/admin/test", "/admin/hymatrix/weixin-reset"}
 	r := gin.New()
 	RegisterRoutes(r, allowAll)
+	var enabledPaths []string
+	for _, path := range paths {
+		if path != "/admin/xbot" {
+			enabledPaths = append(enabledPaths, path)
+		}
+	}
 	var baseline []string
 	for _, path := range paths {
 		t.Run(path, func(t *testing.T) {
@@ -60,16 +66,20 @@ func TestAdminNavigationIsStableAcrossPages(t *testing.T) {
 				}
 			}
 			visit(root, false)
-			if !reflect.DeepEqual(links, paths) {
-				t.Errorf("sidebar links = %v; want %v", links, paths)
+			if !reflect.DeepEqual(links, enabledPaths) {
+				t.Errorf("sidebar links = %v; want %v", links, enabledPaths)
 			}
 			if baseline == nil {
 				baseline = labels
 			} else if !reflect.DeepEqual(labels, baseline) {
 				t.Errorf("sidebar labels changed: %v", labels)
 			}
-			if !reflect.DeepEqual(active, []string{path}) {
-				t.Errorf("active links = %v; want only %s", active, path)
+			var expectedActive []string
+			if path != "/admin/xbot" {
+				expectedActive = []string{path}
+			}
+			if !reflect.DeepEqual(active, expectedActive) {
+				t.Errorf("active links = %v; want %v", active, expectedActive)
 			}
 		})
 	}
