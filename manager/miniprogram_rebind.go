@@ -1,10 +1,8 @@
 package manager
 
 import (
-	"bytes"
-	"encoding/json"
+	"context"
 	"errors"
-	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -40,7 +38,7 @@ func (m *Manager) miniProgramRebindTask(c *gin.Context) (schema.MiniProgramAgent
 		return task, false
 	}
 	c.Header("Cache-Control", "no-store")
-	if pod.WeixinResetPending {
+	if pod.WeixinResetPending && c.Request.Method == http.MethodPost && c.Param("attempt") == "" {
 		c.JSON(409, gin.H{"error": "上次换绑尚待管理员核验，请勿重复提交"})
 		return task, false
 	}
@@ -61,6 +59,8 @@ func (m *Manager) startMiniProgramRebind(c *gin.Context) {
 	attempt, exists := m.weixinAttempts[result.AttemptID]
 	if exists {
 		attempt.MiniProgramTaskID = task.ID
+		attempt.AutoRebind = true
+		attempt.RebindState = "waiting"
 		m.weixinAttempts[attempt.ID] = attempt
 	}
 	m.weixinMu.Unlock()
@@ -68,6 +68,7 @@ func (m *Manager) startMiniProgramRebind(c *gin.Context) {
 		c.JSON(409, gin.H{"error": "连接码已被其他请求替换，请重试"})
 		return
 	}
+	go m.runMiniProgramRebind(task, result.AttemptID)
 	c.JSON(201, gin.H{"attemptId": result.AttemptID, "qrImage": result.QRImage, "expiresAt": result.ExpiresAt, "intervalSeconds": result.IntervalSeconds})
 }
 
@@ -91,7 +92,12 @@ func (m *Manager) pollMiniProgramRebind(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if _, ok = m.miniProgramRebindAttempt(c, task); !ok {
+	a, ok := m.miniProgramRebindAttempt(c, task)
+	if !ok {
+		return
+	}
+	if a.AutoRebind {
+		c.JSON(200, gin.H{"state": a.RebindState})
 		return
 	}
 	state, status, err := m.pollWeixinOnboardingAttempt(c.Request.Context(), c.Param("attempt"))
@@ -128,7 +134,7 @@ func (m *Manager) confirmMiniProgramRebind(c *gin.Context) {
 	}
 	m.weixinMu.Lock()
 	a, exists := m.weixinAttempts[c.Param("attempt")]
-	valid := exists && ownsMiniProgramRebind(a, task) && !a.Submitting && a.Credentials != nil && time.Now().Before(a.CredentialExpiresAt)
+	valid := exists && ownsMiniProgramRebind(a, task) && !a.AutoRebind && !a.Submitting && a.Credentials != nil && time.Now().Before(a.CredentialExpiresAt)
 	if valid {
 		a.Submitting = true
 		m.weixinAttempts[a.ID] = a
@@ -138,12 +144,74 @@ func (m *Manager) confirmMiniProgramRebind(c *gin.Context) {
 		c.JSON(409, gin.H{"error": "请重新扫码确认，或等待当前换绑提交完成"})
 		return
 	}
-	// Reuse the tested encrypted Eval reset flow. It validates bot ownership/availability again.
-	body, _ := json.Marshal(gin.H{"botId": a.Credentials.BotID})
-	c.Request.Body = io.NopCloser(bytes.NewReader(body))
-	c.Request.ContentLength = int64(len(body))
-	c.Params = append(c.Params, gin.Param{Key: "id", Value: task.PodID})
-	m.resetPodWeixin(c)
-	// An uncertain submission must not be automatically retried: the Eval may already be running.
+	status, result := m.resetPodWeixinByID(c.Request.Context(), task.PodID, a.Credentials.BotID)
+	c.JSON(status, result)
 	m.consumeWeixinAttempt(a.ID)
+}
+
+// The worker owns provider polling and submission, independently of the page lifecycle.
+func (m *Manager) runMiniProgramRebind(task schema.MiniProgramAgentTask, id string) {
+	m.runMiniProgramRebindWithReset(task, id, m.resetPodWeixinByID)
+}
+
+func (m *Manager) runMiniProgramRebindWithReset(task schema.MiniProgramAgentTask, id string, reset func(context.Context, string, string) (int, gin.H)) {
+	ctx, cancel := context.WithTimeout(context.Background(), weixinAttemptLifetime+time.Minute)
+	defer cancel()
+	for {
+		m.weixinMu.Lock()
+		a, exists := m.weixinAttempts[id]
+		m.weixinMu.Unlock()
+		if !exists || !ownsMiniProgramRebind(a, task) || a.Submitting {
+			return
+		}
+		state, status, err := m.pollWeixinOnboardingAttempt(ctx, id)
+		if err == nil && state.State == "connected" {
+			m.weixinMu.Lock()
+			a, exists = m.weixinAttempts[id]
+			if !exists || a.Submitting || a.Credentials == nil {
+				m.weixinMu.Unlock()
+				return
+			}
+			a.Submitting = true
+			a.RebindState = "submitting"
+			m.weixinAttempts[id] = a
+			m.weixinMu.Unlock()
+			code, result := reset(ctx, task.PodID, a.Credentials.BotID)
+			final := "uncertain"
+			if code == http.StatusAccepted && result["completed"] == true {
+				final = "completed"
+			}
+			m.weixinMu.Lock()
+			if current, ok := m.weixinAttempts[id]; ok {
+				current.RebindState = final
+				current.Credentials = nil
+				m.weixinAttempts[id] = current
+			}
+			m.weixinMu.Unlock()
+			return // Never retry a reset whose delivery may have succeeded.
+		}
+		if status == 404 || status == 410 || state.State == "expired" {
+			return
+		}
+		m.weixinMu.Lock()
+		if current, ok := m.weixinAttempts[id]; ok {
+			if err == nil {
+				current.RebindState = state.State
+			}
+			if err != nil && status == 409 {
+				current.RebindState = "failed"
+			}
+			m.weixinAttempts[id] = current
+		}
+		m.weixinMu.Unlock()
+		if err != nil && status == 409 {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			m.consumeWeixinAttempt(id)
+			return
+		case <-time.After(2 * time.Second):
+		}
+	}
 }

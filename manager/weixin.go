@@ -34,6 +34,8 @@ type weixinAttempt struct {
 	WebAgentID                                      string
 	MiniProgramTaskID                               string
 	Submitting                                      bool
+	AutoRebind                                      bool
+	RebindState                                     string
 	ID, UserID, PollSecret, QRContent, ProviderBase string
 	ExpiresAt, CredentialExpiresAt                  time.Time
 	Credentials                                     *WeixinCredentials

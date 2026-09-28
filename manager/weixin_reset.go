@@ -12,10 +12,6 @@ import (
 )
 
 func (m *Manager) resetPodWeixin(c *gin.Context) {
-	if m.wdb == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "manager database is unavailable"})
-		return
-	}
 	var req struct {
 		BotID string `json:"botId"`
 	}
@@ -23,32 +19,34 @@ func (m *Manager) resetPodWeixin(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "botId is required"})
 		return
 	}
+	status, result := m.resetPodWeixinByID(c.Request.Context(), c.Param("id"), req.BotID)
+	c.JSON(status, result)
+}
+
+func (m *Manager) resetPodWeixinByID(ctx context.Context, podID, botID string) (int, gin.H) {
+	if m.wdb == nil {
+		return http.StatusServiceUnavailable, gin.H{"error": "manager database is unavailable"}
+	}
 	var pod schema.HymatrixPod
-	if err := m.wdb.Db.First(&pod, "id = ?", c.Param("id")).Error; errors.Is(err, gorm.ErrRecordNotFound) {
-		c.JSON(http.StatusNotFound, gin.H{"error": "pod not found"})
-		return
+	if err := m.wdb.Db.First(&pod, "id = ?", podID).Error; errors.Is(err, gorm.ErrRecordNotFound) {
+		return http.StatusNotFound, gin.H{"error": "pod not found"}
 	} else if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
+		return http.StatusInternalServerError, gin.H{"error": err.Error()}
 	}
 	if pod.Status != schema.PodStatusRunning || !strings.EqualFold(pod.RuntimeType, "hermes") {
-		c.JSON(http.StatusConflict, gin.H{"error": "Weixin reset requires a running Hermes pod"})
-		return
+		return http.StatusConflict, gin.H{"error": "Weixin reset requires a running Hermes pod"}
 	}
 	var bot schema.WeixinBot
-	if err := m.wdb.Db.First(&bot, "id = ? AND user_id = ? AND status = ?", strings.TrimSpace(req.BotID), pod.UserID, schema.WeixinBotStatusAvailable).Error; errors.Is(err, gorm.ErrRecordNotFound) {
-		c.JSON(http.StatusConflict, gin.H{"error": "new Weixin bot is not available for this pod user"})
-		return
+	if err := m.wdb.Db.First(&bot, "id = ? AND user_id = ? AND status = ?", strings.TrimSpace(botID), pod.UserID, schema.WeixinBotStatusAvailable).Error; errors.Is(err, gorm.ErrRecordNotFound) {
+		return http.StatusConflict, gin.H{"error": "new Weixin bot is not available for this pod user"}
 	} else if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
+		return http.StatusInternalServerError, gin.H{"error": err.Error()}
 	}
 	client, err := NewHymatrixClient(HymatrixConfig{NodeURL: pod.NodeURL, PrivateKey: pod.PrivateKey, Module: pod.Module, Scheduler: pod.Scheduler})
 	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": "unable to initialize runtime client"})
-		return
+		return http.StatusBadGateway, gin.H{"error": "unable to initialize runtime client"}
 	}
-	m.submitPodWeixinReset(c, pod, bot, client)
+	return m.submitPodWeixinResetResult(ctx, pod, bot, client)
 }
 
 type weixinResetSender interface {
@@ -56,6 +54,11 @@ type weixinResetSender interface {
 }
 
 func (m *Manager) submitPodWeixinReset(c *gin.Context, pod schema.HymatrixPod, bot schema.WeixinBot, client weixinResetSender) {
+	status, result := m.submitPodWeixinResetResult(c.Request.Context(), pod, bot, client)
+	c.JSON(status, result)
+}
+
+func (m *Manager) submitPodWeixinResetResult(ctx context.Context, pod schema.HymatrixPod, bot schema.WeixinBot, client weixinResetSender) (int, gin.H) {
 	// Persistent CAS protects all replicas and both admin and mini-program entrypoints.
 	err := m.wdb.Db.Transaction(func(tx *gorm.DB) error {
 		claim := tx.Model(&schema.HymatrixPod{}).Where("id = ? AND status = ? AND weixin_reset_pending = ?", pod.ID, schema.PodStatusRunning, false).Update("weixin_reset_pending", true)
@@ -75,21 +78,18 @@ func (m *Manager) submitPodWeixinReset(c *gin.Context, pod schema.HymatrixPod, b
 		return nil
 	})
 	if err != nil {
-		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
-		return
+		return http.StatusConflict, gin.H{"error": err.Error()}
 	}
-	messageID, _, err := client.ResetWeixin(c.Request.Context(), pod.PID, WeixinResetInput{AccountID: bot.AccountID, Token: bot.Token, BaseURL: bot.BaseURL, AllowedUserID: bot.AllowedUserID})
+	messageID, _, err := client.ResetWeixin(ctx, pod.PID, WeixinResetInput{AccountID: bot.AccountID, Token: bot.Token, BaseURL: bot.BaseURL, AllowedUserID: bot.AllowedUserID})
 	if err != nil || strings.TrimSpace(messageID) == "" {
 		// The command may have reached the runtime. Keep both credentials reserved.
-		c.JSON(http.StatusBadGateway, gin.H{"error": "Weixin reset outcome uncertain; administrator verification required"})
-		return
+		return http.StatusBadGateway, gin.H{"error": "Weixin reset outcome uncertain; administrator verification required"}
 	}
 	// Product completion means successful transaction delivery, not runtime health.
 	// Commit assignment and release the guard together so another rebind is possible.
 	err = m.finishPodWeixinReset(pod.ID, bot.ID)
 	if err != nil {
-		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
-		return
+		return http.StatusConflict, gin.H{"error": err.Error()}
 	}
-	c.JSON(http.StatusAccepted, gin.H{"accepted": true, "completed": true, "messageId": messageID, "logPath": "/tmp/reset-weixin.log"})
+	return http.StatusAccepted, gin.H{"accepted": true, "completed": true, "messageId": messageID, "logPath": "/tmp/reset-weixin.log"}
 }
