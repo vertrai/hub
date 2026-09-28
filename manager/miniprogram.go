@@ -73,6 +73,7 @@ func (m *Manager) spawnMiniProgramAgent(c *gin.Context) {
 	}
 	var input struct {
 		AgentID string `json:"agentId"`
+		Nick    string `json:"nick"`
 	}
 	if c.ShouldBindJSON(&input) != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
@@ -88,7 +89,7 @@ func (m *Manager) spawnMiniProgramAgent(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "create task token"})
 		return
 	}
-	task, err := m.reserveMiniProgramAgentTask(userID, template, tokenHash)
+	task, err := m.reserveMiniProgramAgentTask(userID, template, tokenHash, input.Nick)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		c.JSON(http.StatusConflict, gin.H{"error": "助手不存在，暂不可创建"})
 		return
@@ -110,8 +111,16 @@ func (m *Manager) spawnMiniProgramAgent(c *gin.Context) {
 	c.JSON(http.StatusAccepted, m.miniProgramTaskResponse(task, ""))
 }
 
-func (m *Manager) reserveMiniProgramAgentTask(userID, template, tokenHash string) (schema.MiniProgramAgentTask, error) {
+func (m *Manager) reserveMiniProgramAgentTask(userID, template, tokenHash string, nick ...string) (schema.MiniProgramAgentTask, error) {
 	task := schema.MiniProgramAgentTask{ID: "mpt_" + strings.ReplaceAll(uuid.NewString(), "-", ""), UserID: userID, Template: template, TokenHash: tokenHash, Status: schema.MiniProgramTaskSpawning}
+	if len(nick) > 0 {
+		// Optional display metadata never changes ownership or blocks creation.
+		value := []rune(strings.TrimSpace(nick[0]))
+		if len(value) > 64 {
+			value = value[:64]
+		}
+		task.Nick = string(value)
+	}
 	err := m.wdb.Db.Transaction(func(tx *gorm.DB) error {
 		var definition schema.AgentCatalogEntry
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&definition, "id = ?", template).Error; err != nil {
@@ -393,7 +402,7 @@ func (m *Manager) provisionMiniProgramPod(ctx context.Context, task *schema.Mini
 	if podName == "" {
 		podName = task.Template
 	}
-	pod := schema.HymatrixPod{ID: "pod_" + strings.ReplaceAll(uuid.NewString(), "-", ""), UserID: task.UserID, Name: podName, RuntimeType: cfg.RuntimeType, Status: schema.PodStatusSpawning, NodeURL: cfg.NodeURL, AdminURL: cfg.AdminURL, PrivateKey: cfg.PrivateKey, Module: module, Scheduler: hymatrixConfig.Scheduler, AccessKeyID: accessKey.ID}
+	pod := schema.HymatrixPod{ID: "pod_" + strings.ReplaceAll(uuid.NewString(), "-", ""), UserID: task.UserID, Nick: task.Nick, Name: podName, RuntimeType: cfg.RuntimeType, Status: schema.PodStatusSpawning, NodeURL: cfg.NodeURL, AdminURL: cfg.AdminURL, PrivateKey: cfg.PrivateKey, Module: module, Scheduler: hymatrixConfig.Scheduler, AccessKeyID: accessKey.ID}
 	pod.GatewayAPIKey = accessKey.Secret
 	pod.LLMAPIKey, pod.LLMBaseURL, pod.LLMModel, pod.LLMProvider = resource.APIKey, resource.BaseURL, resource.Model, resource.Provider
 	pod.PID = "pending_" + pod.ID

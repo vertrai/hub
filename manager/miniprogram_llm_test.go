@@ -66,6 +66,9 @@ func TestMiniProgramProvisionAllocatesLLMBeforePod(t *testing.T) {
 				// without creating a remote container or requiring a node SDK test double.
 				m.config.Deployment = DeploymentConfig{NodeURL: "https://1.1.1.1", PrivateKey: strings.Repeat("0", 63) + "1"}
 				task := schema.MiniProgramAgentTask{ID: "task", UserID: "wx-test", Template: template, ModuleSnapshot: "configured-module", Status: schema.MiniProgramTaskSpawning}
+				if template == miniProgramTemplateMicAI {
+					task.Nick = "小周"
+				}
 				if err := m.wdb.Db.Create(&task).Error; err != nil {
 					t.Fatal(err)
 				}
@@ -82,6 +85,9 @@ func TestMiniProgramProvisionAllocatesLLMBeforePod(t *testing.T) {
 				var pod schema.HymatrixPod
 				if err := m.wdb.Db.First(&pod, "id = ?", task.PodID).Error; err != nil {
 					t.Fatal(err)
+				}
+				if pod.Nick != task.Nick || pod.UserID != task.UserID {
+					t.Fatal("nickname metadata changed or lost Pod ownership")
 				}
 				resource := acquireResourceTest(t, m, "hub-test")
 				if pod.LLMAPIKey != resource.APIKey || pod.LLMAPIKey == "hub-test" || pod.LLMBaseURL != resource.BaseURL || pod.LLMModel != "hub-chat" || pod.LLMProvider != "custom" || pod.GatewayAPIKey != "hub-test" {

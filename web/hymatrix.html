@@ -1389,13 +1389,13 @@
         const rows = visible
           .map(
             (p) =>
-              `<tr><td><b>${esc(p.name)}</b><br><small>${esc(p.userId)}</small></td><td>${esc(p.runtimeType)}</td><td>${esc(p.module)}<br><small>${esc(p.scheduler)}</small></td><td>${esc(p.llmProvider || "—")} / ${esc(p.llmModel || "—")}</td><td>${esc(p.pid || "—")}</td><td>${esc(formatPodTime(p.createdAt))}</td><td>${pill(p.status)}</td><td><div class="pod-actions">${podActionButtons(p)}</div></td></tr>`,
+              `<tr><td><b>${esc(p.name)}</b><br><small>${esc(p.nick ? `(${p.nick})${p.userId}` : p.userId)}</small></td><td>${esc(p.runtimeType)}</td><td>${esc(p.module)}<br><small>${esc(p.scheduler)}</small></td><td>${esc(p.llmProvider || "—")} / ${esc(p.llmModel || "—")}</td><td>${esc(p.pid || "—")}</td><td>${esc(formatPodTime(p.createdAt))}</td><td>${pill(p.status)}</td><td><div class="pod-actions">${podActionButtons(p)}</div></td></tr>`,
           )
           .join("");
         const cards = visible
           .map(
             (p) =>
-              `<article class="pod-card"><div class="pod-card-head"><div><b>${esc(p.name)}</b><br><small>${esc(p.userId)}</small></div>${pill(p.status)}</div><dl><dt>Runtime</dt><dd>${esc(p.runtimeType)}</dd><dt>LLM</dt><dd>${esc(p.llmProvider || "—")} / ${esc(p.llmModel || "—")}</dd><dt>PID</dt><dd>${esc(p.pid || "—")}</dd><dt>创建时间</dt><dd>${esc(formatPodTime(p.createdAt))}</dd></dl><div class="pod-card-foot"><small>${p.error ? "有失败信息可查看" : "交易配置已隐藏敏感值"}</small><div class="pod-actions">${podActionButtons(p)}</div></div></article>`,
+              `<article class="pod-card"><div class="pod-card-head"><div><b>${esc(p.name)}</b><br><small>${esc(p.nick ? `(${p.nick})${p.userId}` : p.userId)}</small></div>${pill(p.status)}</div><dl><dt>Runtime</dt><dd>${esc(p.runtimeType)}</dd><dt>LLM</dt><dd>${esc(p.llmProvider || "—")} / ${esc(p.llmModel || "—")}</dd><dt>PID</dt><dd>${esc(p.pid || "—")}</dd><dt>创建时间</dt><dd>${esc(formatPodTime(p.createdAt))}</dd></dl><div class="pod-card-foot"><small>${p.error ? "有失败信息可查看" : "交易配置已隐藏敏感值"}</small><div class="pod-actions">${podActionButtons(p)}</div></div></article>`,
           )
           .join("");
         $("pods").innerHTML = `<div class="table-wrap pod-table"><table><thead><tr><th>Pod / 用户</th><th>Runtime</th><th>Module / Scheduler</th><th>LLM</th><th>PID</th><th>创建时间</th><th>状态</th><th></th></tr></thead><tbody>${rows}</tbody></table></div><div class="pod-cards">${cards}</div>`;
@@ -1405,7 +1405,7 @@
         const pod = allPods.find((item) => item.id === id);
         if (!pod) return;
         $("podDetailTitle").textContent = pod.name || "Pod 详情";
-        $("podDetailBody").innerHTML = `${pod.error ? `<div class="pod-error"><b>失败原因</b><br>${esc(pod.error)}</div>` : ""}<dl class="pod-detail-grid"><dt>状态</dt><dd>${pill(pod.status)}</dd><dt>用户</dt><dd>${esc(pod.userId)}</dd><dt>Runtime</dt><dd>${esc(pod.runtimeType)}</dd><dt>创建时间</dt><dd>${esc(formatPodTime(pod.createdAt))}</dd><dt>Node URL</dt><dd>${esc(pod.nodeUrl)}</dd><dt>Admin API URL</dt><dd>${esc(pod.adminUrl || "未配置")}</dd><dt>Module</dt><dd>${esc(pod.module)}</dd><dt>Scheduler</dt><dd>${esc(pod.scheduler)}</dd><dt>PID</dt><dd>${esc(pod.pid || "—")}</dd><dt>LLM</dt><dd>${esc(pod.llmProvider || "—")} / ${esc(pod.llmModel || "—")}</dd><dt>LLM Base URL</dt><dd>${esc(pod.llmBaseUrl || "—")}</dd><dt>Access Key</dt><dd>${esc(pod.accessKeyId || "—")}</dd></dl>`;
+        $("podDetailBody").innerHTML = `${pod.error ? `<div class="pod-error"><b>失败原因</b><br>${esc(pod.error)}</div>` : ""}<dl class="pod-detail-grid"><dt>状态</dt><dd>${pill(pod.status)}</dd><dt>用户</dt><dd>${esc(pod.nick ? `(${pod.nick})${pod.userId}` : pod.userId)}</dd><dt>Runtime</dt><dd>${esc(pod.runtimeType)}</dd><dt>创建时间</dt><dd>${esc(formatPodTime(pod.createdAt))}</dd><dt>Node URL</dt><dd>${esc(pod.nodeUrl)}</dd><dt>Admin API URL</dt><dd>${esc(pod.adminUrl || "未配置")}</dd><dt>Module</dt><dd>${esc(pod.module)}</dd><dt>Scheduler</dt><dd>${esc(pod.scheduler)}</dd><dt>PID</dt><dd>${esc(pod.pid || "—")}</dd><dt>LLM</dt><dd>${esc(pod.llmProvider || "—")} / ${esc(pod.llmModel || "—")}</dd><dt>LLM Base URL</dt><dd>${esc(pod.llmBaseUrl || "—")}</dd><dt>Access Key</dt><dd>${esc(pod.accessKeyId || "—")}</dd></dl>`;
         $("podDetail").showModal();
       }
       async function openStartAgent(id) {

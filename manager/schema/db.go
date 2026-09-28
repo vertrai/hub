@@ -51,6 +51,7 @@ type AccessKey struct {
 func (AccessKey) TableName() string { return "manager_access_keys" }
 
 type HymatrixPod struct {
+	Nick               string    `gorm:"size:64;not null;default:''" json:"nick,omitempty"`
 	WeixinResetPending bool      `gorm:"not null;default:false" json:"weixinResetPending"`
 	ID                 string    `gorm:"primaryKey;size:80" json:"id"`
 	UserID             string    `gorm:"size:80;not null;index" json:"userId"`
@@ -107,6 +108,7 @@ func (WeixinBot) TableName() string { return "manager_weixin_bots" }
 // MiniProgramAgentTask is the public, token-protected view of Pod provisioning.
 // Sensitive Pod, wallet and iLink credentials remain in their owning tables.
 type MiniProgramAgentTask struct {
+	Nick            string         `gorm:"size:64;not null;default:''" json:"-"`
 	DeletedAt       gorm.DeletedAt `gorm:"index" json:"-"`
 	ModuleSnapshot  string         `json:"-"`
 	NameSnapshot    string         `json:"-"`
