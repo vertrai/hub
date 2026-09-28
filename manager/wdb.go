@@ -2,6 +2,8 @@ package manager
 
 import (
 	"fmt"
+	stdlog "log"
+	"os"
 	"time"
 
 	"github.com/vertrai/hub/manager/schema"
@@ -19,7 +21,7 @@ func NewWdb(dsn string) (*Wdb, error) {
 	started := time.Now()
 	stage := time.Now()
 	log.Info("manager startup stage started", "stage", "postgres_connect")
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{Logger: logger.Default.LogMode(logger.Error), CreateBatchSize: 3000})
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{Logger: managerDatabaseLogger(stdlog.New(os.Stdout, "\r\n", stdlog.LstdFlags)), CreateBatchSize: 3000})
 	if err != nil {
 		return nil, fmt.Errorf("connect postgres: %w", err)
 	}
@@ -38,8 +40,8 @@ func (w *Wdb) Migrate() error {
 	}
 	log.Info("manager startup stage completed", "stage", "legacy_table_check", "elapsed", time.Since(stage))
 	stage = time.Now()
-	log.Info("manager startup stage started", "stage", "auto_migrate", "models", 18)
-	if err := w.Db.AutoMigrate(&schema.StripeSettings{}, &schema.InviteCode{}, &schema.WebAgent{}, &schema.Billing{}, &schema.StripeEvent{}, &schema.XboxChild{}, &schema.NetEaseAccount{}, &schema.LLMRoute{}, &schema.LLMResourceSettings{}, &schema.LLMProvider{}, &schema.LLMKey{}, &schema.User{}, &schema.AccessKey{}, &schema.HymatrixPod{}, &schema.WeixinBot{}, &schema.MiniProgramAgentTask{}, &schema.AgentCatalogEntry{}, &schema.AgentCatalogImage{}); err != nil {
+	log.Info("manager startup stage started", "stage", "auto_migrate", "models", 20)
+	if err := w.Db.AutoMigrate(&schema.ResourceAlertConfig{}, &schema.ResourceAlertDelivery{}, &schema.StripeSettings{}, &schema.InviteCode{}, &schema.WebAgent{}, &schema.Billing{}, &schema.StripeEvent{}, &schema.XboxChild{}, &schema.NetEaseAccount{}, &schema.LLMRoute{}, &schema.LLMResourceSettings{}, &schema.LLMProvider{}, &schema.LLMKey{}, &schema.User{}, &schema.AccessKey{}, &schema.HymatrixPod{}, &schema.WeixinBot{}, &schema.MiniProgramAgentTask{}, &schema.AgentCatalogEntry{}, &schema.AgentCatalogImage{}); err != nil {
 		return fmt.Errorf("migrate postgres: %w", err)
 	}
 	log.Info("manager startup stage completed", "stage", "auto_migrate", "elapsed", time.Since(stage))
@@ -85,4 +87,12 @@ func (w *Wdb) Close() error {
 		return err
 	}
 	return db.Close()
+}
+
+// Keep database logging policy consistent across startup and runtime queries.
+func managerDatabaseLogger(writer logger.Writer) logger.Interface {
+	return logger.New(writer, logger.Config{
+		LogLevel:                  logger.Error,
+		IgnoreRecordNotFoundError: true,
+	})
 }

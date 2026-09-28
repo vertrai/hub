@@ -52,6 +52,7 @@ type Manager struct {
 	commerceContext       context.Context
 	commerceCancel        context.CancelFunc
 	commerceDone          chan struct{}
+	resourceAlertDone     chan struct{}
 	stripeAPI             stripeGateway
 	llmOAuthMu            sync.Mutex
 	llmOAuthSessions      map[string]*llmOAuthSession
@@ -113,12 +114,17 @@ func (m *Manager) Run(endpoint string) {
 	m.commerceContext, m.commerceCancel = context.WithCancel(context.Background())
 	m.commerceDone = make(chan struct{})
 	go func() { defer close(m.commerceDone); m.runJobs() }()
+	m.resourceAlertDone = make(chan struct{})
+	go func() { defer close(m.resourceAlertDone); m.runResourceAlerts(m.commerceContext) }()
 	go m.runAPI(endpoint)
 }
 func (m *Manager) Close() {
 	if m.commerceCancel != nil {
 		m.commerceCancel()
 		<-m.commerceDone
+		if m.resourceAlertDone != nil {
+			<-m.resourceAlertDone
+		}
 	}
 	if m.apiServer != nil {
 		_ = m.apiServer.Shutdown(context.Background())

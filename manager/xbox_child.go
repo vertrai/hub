@@ -110,7 +110,7 @@ func (m *Manager) getXboxChild(c *gin.Context) {
 					c.JSON(200, gin.H{"email": item.Email, "password": item.Password})
 					return
 				}
-				c.JSON(409, gin.H{"error": "暂无可用 Xbox child 账户"})
+				resourcePoolExhausted(c, "xbox-child")
 				return
 			}
 		}

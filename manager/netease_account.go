@@ -110,7 +110,7 @@ func (m *Manager) getNetEaseAccount(c *gin.Context) {
 					c.JSON(200, gin.H{"id": item.ID, "username": item.Username, "password": item.Password})
 					return
 				}
-				c.JSON(409, gin.H{"error": "暂无可用网易游戏账户"})
+				resourcePoolExhausted(c, "netease")
 				return
 			}
 		}

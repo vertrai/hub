@@ -57,6 +57,9 @@ var neteaseAccountHTML []byte
 //go:embed xbox_child.html
 var xboxChildHTML []byte
 
+//go:embed resource_alerts.html
+var resourceAlertsHTML []byte
+
 //go:embed xbot.html
 var xbotHTML []byte
 
@@ -130,6 +133,7 @@ func RegisterRoutes(routes *gin.Engine, authentication gin.HandlerFunc) {
 	protected.GET("/admin/browser", func(c *gin.Context) { renderAdminDocument(c, browserHTML) })
 	protected.GET("/admin/netease-accounts", func(c *gin.Context) { renderAdminDocument(c, neteaseAccountHTML) })
 	protected.GET("/admin/xbox-child", func(c *gin.Context) { renderAdminDocument(c, xboxChildHTML) })
+	protected.GET("/admin/resource-alerts", func(c *gin.Context) { renderAdminDocument(c, resourceAlertsHTML) })
 	protected.GET("/admin/xbot", func(c *gin.Context) { renderAdminDocument(c, xbotHTML) })
 	protected.GET("/admin/telegram", func(c *gin.Context) { renderAdminDocument(c, telegramHTML) })
 	protected.GET("/admin/weixin", func(c *gin.Context) { renderAdminDocument(c, weixinHTML) })

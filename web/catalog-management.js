@@ -2,7 +2,7 @@
   const scope = location.pathname.endsWith('/web') ? 'web' : 'core';
   const endpoint = '/v1/admin/catalog-management/' + scope;
   const form = $('editor');
-  let selected = null, generation = 0, uploading = false;
+  let selected = null, generation = 0, uploading = false, resourceOptions = null;
   const coreFields = [['name','助手名称'],['logoUrl','默认图标地址（HTTPS 或已上传的图片路径）'],['intro','一句话介绍'],['module','Hymatrix 运行模块']];
   const copyFields = [['name','展示名称'],['intro','一句话介绍'],['summary','详细介绍'],['capabilities','能力（每行一项）'],['compatibilityNote','使用条件']];
   $('heading').textContent = scope === 'core' ? '助手库' : '网页版展示';
@@ -24,6 +24,9 @@
       input.required=key!=='summary';
       input.maxLength=key==='name'?24:key==='module'?512:2000;
     });
+    const resources=document.createElement('fieldset');resources.id='required-resources';
+    resources.innerHTML='<legend>所需 Hub 资源</legend><p class="note">不勾选则不检查资源。小程序创建前会检查全部所选资源。</p>';
+    $('fields').append(resources);
     const upload=field($('fields'),'iconFile','上传默认图标（PNG/JPEG，最大 5 MB）','file');upload.accept='image/png,image/jpeg';
     upload.onchange=async()=>{
       const file=upload.files[0];if(!file)return;
@@ -80,6 +83,7 @@
       for(const locale of ['zh','en']) for(const [key] of copyFields){const v=agent.web?.content?.[locale]?.[key];form.elements[locale+'_'+key].value=Array.isArray(v)?v.join('\n'):v||'';}
     }
     document.querySelectorAll('[data-agent-id]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.agentId===agent?.id)));
+    if(scope==='core')document.querySelectorAll('[data-resource]').forEach(input=>{input.checked=(agent?.requiredResources||[]).includes(input.dataset.resource);});
     preview();
   }
   function preview(){
@@ -99,7 +103,12 @@
   form.addEventListener('input',preview);
   async function refresh(){
     try {
-      const {agents}=await adminRequest(endpoint);$('list').replaceChildren();
+      const {agents,resourceOptions:options}=await adminRequest(endpoint);
+      if(scope==='core' && resourceOptions===null){
+        if(!Array.isArray(options))throw new Error('无法加载 Hub 资源选项，请更新后端后刷新。');
+        resourceOptions=options;
+        for(const option of options){const input=field($('required-resources'),'resource_'+option.resource,option.label,'checkbox');input.dataset.resource=option.resource;input.checked=(selected?.requiredResources||[]).includes(option.resource);}
+      }$('list').replaceChildren();
       $('list-status').textContent=agents.length?`共 ${agents.length} 个助手`:'暂无助手，请先在助手库新增。';
       for(const agent of agents){const button=document.createElement('button');button.type='button';button.dataset.agentId=agent.id;button.setAttribute('aria-pressed',String(selected?.id===agent.id));
         const title=document.createElement('strong');title.textContent=agent.name;const meta=document.createElement('small');meta.textContent=scope==='web'?(agent.web?.published?'网页已上架':'网页未上架'):agent.id;
@@ -108,6 +117,10 @@
   }
   form.onsubmit=async event=>{
     event.preventDefault();if(uploading)return;const payload={};
+    if(scope==='core'){
+      if(resourceOptions===null){showStatus($('status'),'资源选项尚未加载，请刷新列表后重试。');return;}
+      payload.requiredResources=Array.from(document.querySelectorAll('[data-resource]:checked'),input=>input.dataset.resource);
+    }
     const value=name=>form.elements[name].value.trim();const lines=s=>s.split('\n').map(v=>v.trim()).filter(Boolean);
     if(scope==='core')coreFields.forEach(([key])=>payload[key]=key==='capabilities'?lines(value(key)):value(key));
     else {

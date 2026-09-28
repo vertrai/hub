@@ -37,6 +37,11 @@ func validateCatalogEntry(a schema.AgentCatalogEntry) error {
 }
 
 func validateCatalogFields(a schema.AgentCatalogEntry, requireCapabilities bool) error {
+	for _, resource := range a.RequiredResources {
+		if model, _ := resourcePoolModel(resource); model == nil {
+			return errors.New("无效的 Hub 资源类型：" + resource)
+		}
+	}
 	if err := validateWebCatalog(a); err != nil {
 		return err
 	}
@@ -81,7 +86,7 @@ func validateCatalogFields(a schema.AgentCatalogEntry, requireCapabilities bool)
 }
 func publicCatalogEntry(a schema.AgentCatalogEntry) gin.H {
 	a = wechatCatalogView(a)
-	return gin.H{"id": a.ID, "name": a.Name, "logoUrl": a.LogoURL, "kicker": a.Kicker, "intro": a.Intro, "summary": a.Summary, "capabilities": a.Capabilities, "loginCopy": a.LoginCopy, "capabilityCopy": a.CapabilityCopy, "creationDetail": a.CreationDetail, "ctaLabel": a.CTALabel, "compatibilityNote": a.CompatibilityNote, "published": a.Published}
+	return gin.H{"requiredResources": append([]string{}, a.RequiredResources...), "id": a.ID, "name": a.Name, "logoUrl": a.LogoURL, "kicker": a.Kicker, "intro": a.Intro, "summary": a.Summary, "capabilities": a.Capabilities, "loginCopy": a.LoginCopy, "capabilityCopy": a.CapabilityCopy, "creationDetail": a.CreationDetail, "ctaLabel": a.CTALabel, "compatibilityNote": a.CompatibilityNote, "published": a.Published}
 }
 func (m *Manager) catalogDB(c *gin.Context) bool {
 	if m.wdb == nil {
@@ -230,6 +235,9 @@ func (m *Manager) adminSaveAgentCatalog(c *gin.Context) {
 			// Older admin clients omit web settings; preserve them on ordinary edits.
 			if a.Web == nil {
 				a.Web = old.Web
+			}
+			if a.RequiredResources == nil {
+				a.RequiredResources = old.RequiredResources
 			}
 			a.CreatedAt = old.CreatedAt
 			return tx.Save(&a).Error

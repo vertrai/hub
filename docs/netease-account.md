@@ -35,3 +35,5 @@
 MicAI Agent 不应打印此响应。它通过私有临时凭证文件调用
 `micai-netease-native login --credentials <path>`，登录结束删除凭证文件。
 账号池增删改不会推送终止已建立的游戏连接；运行中的 Agent 需 stop 后重新 login 领取当前绑定。
+
+资源预检查接口及统一耗尽错误码见 [资源可用状态](resource-availability.md)。

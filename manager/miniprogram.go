@@ -90,6 +90,15 @@ func (m *Manager) spawnMiniProgramAgent(c *gin.Context) {
 		return
 	}
 	task, err := m.reserveMiniProgramAgentTask(userID, template, tokenHash, input.Nick)
+	var resourceErr *agentResourceError
+	if errors.As(err, &resourceErr) {
+		if resourceErr.resource == "" {
+			resourceStatusUnavailable(c)
+		} else {
+			resourcePoolExhausted(c, resourceErr.resource)
+		}
+		return
+	}
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		c.JSON(http.StatusConflict, gin.H{"error": "助手不存在，暂不可创建"})
 		return
@@ -149,6 +158,9 @@ func (m *Manager) reserveMiniProgramAgentTask(userID, template, tokenHash string
 		}
 		if recentAttempts >= 3 {
 			return errMiniProgramProvisionRateLimited
+		}
+		if err := checkRequiredAgentResources(tx, definition.RequiredResources); err != nil {
+			return err
 		}
 		return tx.Create(&task).Error
 	})

@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>资源告警设置</title><link rel="stylesheet" href="/admin/assets/common.css"><style>.alert-fields{display:grid;gap:14px;margin-top:16px}.alert-fields input[type=checkbox],td input[type=checkbox]{width:auto}td input[type=number]{min-width:90px}.alert-fields label:has(input[type=checkbox]){display:flex;align-items:center} .alert-status{margin:16px 0}.alert-actions{margin-top:20px}</style></head>
+<body><div class="shell"><aside class="side"><div class="brand"><span>AGENT RUNTIME CONTROL</span><b>Agent Runtime Hub</b></div><!-- admin-navigation --></aside>
+<main class="content"><header class="page-head"><div><div class="eyebrow">资源池</div><h1>资源告警设置</h1><p>按资源池设置可用库存阈值和通知渠道，及时提醒管理员手动补充账户。</p></div></header>
+<form id="settings" autocomplete="off"><fieldset id="fields" disabled style="border:0;padding:0;margin:0"><section class="grid">
+<article class="card wide"><h2>告警规则</h2><p>每分钟检查一次，可用库存 ≤ 设定阈值时通知。阈值可设为 0；库存恢复后再次不足会重新通知。发送失败每 5 分钟重试。</p><div id="rules" class="table-wrap"></div></article>
+<article class="card"><h2>Telegram 通知</h2><p>填写 Bot Token 和接收消息的 Chat ID。请先与 Bot 发起对话，或将它加入目标群组并授予发送权限。</p><div class="alert-fields">
+<label>Bot Token<input id="telegramToken" type="password" autocomplete="new-password" placeholder="填写 Bot Token"></label><label>Chat ID<input id="telegramChatId" type="text" placeholder="个人或群组 Chat ID" aria-describedby="chatIdGuide"></label>
+<div id="chatIdGuide" class="notice" style="line-height:1.7;overflow-wrap:anywhere"><h3>如何获取 Chat ID</h3>
+<p style="margin-top:8px"><strong>个人通知：使用查询 ID 的 Bot（更简单）</strong></p>
+<ol style="padding-left:20px;margin:8px 0">
+<li>打开 <a href="https://t.me/userinfobot" target="_blank" rel="noopener noreferrer">@userinfobot</a>，点击 Start（开始），按提示获取你自己的数字 ID。</li>
+<li>将返回的个人数字 ID 填入上方 Chat ID；此方式用于给你本人发送私聊通知。</li>
+<li><strong>再打开上方 Bot Token 对应的告警 Bot，点击 Start 或发送 <code>/start</code></strong>，让告警 Bot 可以向你发送消息。仅启动查询 ID 的 Bot 不够。</li>
+</ol>
+<p>@userinfobot 是第三方工具，并非 Telegram 官方 Bot。查询个人 ID 不需要向它提供你的 Bot Token。</p>
+<details style="margin-top:12px"><summary style="cursor:pointer">群组通知或备用方式：通过 Telegram 官方 API 获取</summary>
+<ol style="padding-left:20px;margin:8px 0">
+<li><strong>个人通知：</strong>在 Telegram 中打开你配置的 Bot，点击 Start（开始），或发送 <code>/start</code>。</li>
+<li><strong>群组通知：</strong>将这个 Bot 加入目标群组，在群里发送 <code>/start@你的Bot用户名</code>（替换为实际用户名，不需要 Bot 回复），并确保 Bot 有发送消息的权限。</li>
+<li>在浏览器打开 <code>https://api.telegram.org/bot&lt;你的Bot Token&gt;/getUpdates</code>，把 <code>&lt;你的Bot Token&gt;</code> 整段替换为上方 Bot 的真实 Token，保留前面的 <code>bot</code>。</li>
+<li>在返回的 <code>result</code> 中找到刚刚发送的消息，核对 <code>message.chat</code> 中的姓名或群名，复制 <code>message.chat.id</code> 到上方 Chat ID。群组 ID 如带负号，必须完整保留；不要复制 <code>from.id</code> 或 <code>update_id</code>。</li>
+</ol>
+<p>如果 <code>result</code> 为空，重新发送上述消息后刷新。如果 Bot 已设置 Webhook，或有其他程序正在读取消息，请从该程序收到的消息中获取 <code>message.chat.id</code>，或使用独立的告警 Bot。</p>
+<p><a href="https://core.telegram.org/bots/api#getupdates" target="_blank" rel="noopener noreferrer">查看 Telegram 官方说明</a></p></details></div>
+</div></article>
+<article class="card"><h2>Email 通知</h2><p>通过 SMTP 发送邮件，支持 STARTTLS 和直接 TLS 加密。</p><div class="alert-fields">
+<label>SMTP 主机<input id="smtpHost" type="text" placeholder="smtp.example.com"></label><label>端口<input id="smtpPort" type="number" min="1" max="65535"></label><label>加密方式<select id="smtpMode"><option value="starttls">STARTTLS（常用端口 587）</option><option value="tls">TLS（常用端口 465）</option></select></label>
+<label>SMTP 用户名<input id="smtpUser" type="text"></label><label>SMTP 密码 / 授权码<input id="smtpPassword" type="password" autocomplete="new-password"></label><label>发件邮箱<input id="emailFrom" type="email"></label><label>收件邮箱<input id="emailTo" type="email" placeholder="单个接收通知的邮箱"></label>
+</div></article>
+</section><div class="actions alert-actions"><button id="save" type="submit">保存告警配置</button></div></fieldset><p id="message" role="status" class="alert-status">正在加载配置…</p></form>
+<article class="card"><div class="page-head"><h2>通知状态</h2><button id="refresh" class="secondary" type="button">刷新状态</button></div><div id="deliveries" class="table-wrap"></div></article>
+</main></div><script src="/admin/assets/common.js"></script><script>
+const names={'xbox-child':'Xbox Child 资源池',netease:'网易游戏账户资源池'};
+const fields=['telegramToken','telegramChatId','smtpHost','smtpPort','smtpUser','smtpPassword','smtpMode','emailFrom','emailTo'];
+function showStatus(data){$('deliveries').innerHTML=`<table><thead><tr><th>资源池 / 渠道</th><th>最近发送成功</th><th>状态</th></tr></thead><tbody>${(data.deliveries||[]).map(x=>`<tr><td>${esc(names[x.id.split(':')[0]]||x.id)} / ${esc(x.id.split(':')[1])}</td><td>${esc(x.lastSent?new Date(x.lastSent).toLocaleString():'尚未发送')}</td><td>${esc(x.lastError||'无发送错误')}</td></tr>`).join('')||'<tr><td colspan="3" class="empty">暂无通知记录，启用规则后会自动检查。</td></tr>'}</tbody></table>`;for(const [pool,n] of Object.entries(data.inventory)){const cell=document.querySelector(`[data-stock="${pool}"]`);if(cell)cell.textContent=n}}
+async function load(){try{const data=await adminRequest('/v1/admin/resource-alerts');for(const f of fields)$(f).value=data.settings[f]??'';
+$('telegramToken').placeholder=data.telegramTokenConfigured?'已配置，留空保留原 Token':'填写 Bot Token';$('smtpPassword').placeholder=data.smtpPasswordConfigured?'已配置，留空保留原密码':'填写 SMTP 密码或授权码';
+$('rules').innerHTML=`<table><thead><tr><th>启用</th><th>资源池</th><th>可用库存</th><th>告警阈值 ≤</th><th>重复间隔（小时）</th><th>Telegram</th><th>Email</th></tr></thead><tbody>${data.settings.rules.map(r=>`<tr data-pool="${esc(r.pool)}"><td><input data-field="enabled" type="checkbox" aria-label="启用 ${esc(names[r.pool])}" ${r.enabled?'checked':''}></td><td>${esc(names[r.pool])}</td><td data-stock="${esc(r.pool)}">${data.inventory[r.pool]}</td><td><input data-field="threshold" type="number" aria-label="${esc(names[r.pool])} 告警阈值" min="0" max="1000000" required value="${r.threshold}"></td><td><input data-field="repeatHours" type="number" aria-label="${esc(names[r.pool])} 重复间隔" min="1" max="720" required value="${r.repeatHours}"></td><td><input data-field="telegram" type="checkbox" aria-label="${esc(names[r.pool])} Telegram 通知" ${r.telegram?'checked':''}></td><td><input data-field="email" type="checkbox" aria-label="${esc(names[r.pool])} Email 通知" ${r.email?'checked':''}></td></tr>`).join('')}</tbody></table>`;showStatus(data);$('fields').disabled=false;$('message').textContent='';}catch(e){$('message').textContent=e.message}}
+$('settings').onsubmit=async e=>{e.preventDefault();const cfg={};for(const f of fields)cfg[f]=f==='smtpPort'?Number($(f).value):$(f).value;cfg.rules=[...document.querySelectorAll('[data-pool]')].map(row=>{const r={pool:row.dataset.pool};for(const input of row.querySelectorAll('[data-field]'))r[input.dataset.field]=input.type==='checkbox'?input.checked:Number(input.value);return r});setBusy($('save'),true,'保存中…');try{await adminRequest('/v1/admin/resource-alerts',{method:'PUT',body:JSON.stringify(cfg)});$('telegramToken').value='';$('smtpPassword').value='';$('message').textContent='配置已保存，启用的规则将在下一次检查时生效。';}catch(e){$('message').textContent=e.message}finally{setBusy($('save'),false)}};
+$('refresh').onclick=async()=>{setBusy($('refresh'),true,'加载中…');try{showStatus(await adminRequest('/v1/admin/resource-alerts'))}catch(e){$('message').textContent=e.message}finally{setBusy($('refresh'),false)}};load();
+</script></body></html>

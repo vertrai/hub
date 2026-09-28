@@ -5,6 +5,7 @@ import "time"
 // ID is the stable business identity, retained in MiniProgramAgentTask.Template.
 // Module is only returned to administrators, never to mini-program clients.
 type AgentCatalogEntry struct {
+	RequiredResources []string           `gorm:"serializer:json;type:jsonb" json:"requiredResources"`
 	Wechat            *WechatCatalogCopy `gorm:"serializer:json;type:jsonb" json:"wechat,omitempty"`
 	Web               *WebCatalogConfig  `gorm:"serializer:json;type:jsonb" json:"web,omitempty"`
 	ProductID         string             `gorm:"size:64;not null;default:'';uniqueIndex:idx_manager_catalog_product,where:product_id <> ''" json:"productId"`

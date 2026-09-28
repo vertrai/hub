@@ -45,6 +45,9 @@ func mergeCatalogScope(old, input schema.AgentCatalogEntry, scope string) (schem
 		a.LogoURL = input.LogoURL
 		a.Intro = input.Intro
 		a.Module = strings.TrimSpace(input.Module)
+		if input.RequiredResources != nil {
+			a.RequiredResources = input.RequiredResources
+		}
 	case "wechat":
 		a.Wechat = wechatCopy(input)
 		a.Kicker = input.Kicker
@@ -97,7 +100,7 @@ func (m *Manager) adminScopedCatalog(c *gin.Context) {
 			entries[i] = wechatCatalogView(entries[i])
 		}
 	}
-	c.JSON(200, gin.H{"agents": entries})
+	c.JSON(200, gin.H{"agents": entries, "resourceOptions": catalogResourceOptions()})
 }
 func (m *Manager) adminCreateCatalogCore(c *gin.Context) {
 	if !m.catalogDB(c) {
@@ -109,7 +112,7 @@ func (m *Manager) adminCreateCatalogCore(c *gin.Context) {
 		c.JSON(400, gin.H{"error": "无效的助手信息"})
 		return
 	}
-	a := schema.AgentCatalogEntry{ID: generatedCatalogID(input.Name), Name: input.Name, LogoURL: input.LogoURL, Intro: input.Intro, Module: strings.TrimSpace(input.Module)}
+	a := schema.AgentCatalogEntry{ID: generatedCatalogID(input.Name), Name: input.Name, LogoURL: input.LogoURL, Intro: input.Intro, Module: strings.TrimSpace(input.Module), RequiredResources: input.RequiredResources}
 	if err := validateCatalogFields(a, false); err != nil {
 		c.JSON(400, gin.H{"error": err.Error()})
 		return
